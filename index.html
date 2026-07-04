@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Talking Graphing Calculator</title>
+  <meta name="description" content="A highly accessible, large-print, high-contrast talking graphing calculator designed for low-vision and blind users. Inspired by the Orion TI-84.">
+  <link rel="stylesheet" href="style.css">
+  <!-- Load Outfit font for modern, highly readable sans-serif typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header Bar -->
+    <header class="app-header" role="banner">
+      <h1 id="app-title">Talking Graphing Calculator</h1>
+      <button id="btn-help" class="help-trigger" aria-haspopup="dialog" aria-controls="helpOverlay">
+        Help (H)
+      </button>
+    </header>
+
+    <!-- Main Viewport Area -->
+    <main class="app-main" role="main">
+      <!-- Sidebar Control Panel -->
+      <section class="sidebar-panel" aria-label="Equation Inputs">
+        <h2 class="section-title">Equations</h2>
+        <div class="input-group">
+          <label for="input-y1" class="input-label">Y1 =</label>
+          <input type="text" id="input-y1" class="equation-input" placeholder="e.g., x" autocomplete="off" spellcheck="false" aria-describedby="y1-help">
+        </div>
+        <div class="input-group">
+          <label for="input-y2" class="input-label">Y2 =</label>
+          <input type="text" id="input-y2" class="equation-input" placeholder="e.g., 2*x" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-group">
+          <label for="input-y3" class="input-label">Y3 =</label>
+          <input type="text" id="input-y3" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-group">
+          <label for="input-y4" class="input-label">Y4 =</label>
+          <input type="text" id="input-y4" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+        </div>
+
+        <h2 class="section-title">Vertical Lines</h2>
+        <div class="input-group">
+          <label for="input-x1" class="input-label">X1 =</label>
+          <input type="text" id="input-x1" class="equation-input" placeholder="e.g., -2" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-group">
+          <label for="input-x2" class="input-label">X2 =</label>
+          <input type="text" id="input-x2" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+        </div>
+      </section>
+
+      <!-- Graphing Viewport Section -->
+      <section class="graph-section" aria-label="Graph Canvas">
+        <div class="canvas-wrapper">
+          <canvas id="graphCanvas" tabindex="0" role="application" aria-label="Graphing grid viewport. Use arrow keys to navigate the crosshairs. Press Escape or Tab to leave."></canvas>
+          <!-- Custom accessible legend / state reader for screen readers -->
+          <div class="sr-only" id="graph-announcement" aria-live="assertive"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer for status / information -->
+    <footer class="app-footer">
+      <div id="footer-coordinates" aria-live="polite">Cursor: X = 0.00, Y = 0.00</div>
+      <div id="footer-trace-mode" class="trace-mode-badge hidden">Trace Active</div>
+      <div id="footer-status">Speech Engine: Online</div>
+    </footer>
+  </div>
+
+  <!-- Help Overlay Modal -->
+  <div id="helpOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle" aria-describedby="helpContent">
+    <div class="overlay-content">
+      <header class="overlay-header">
+        <h2 id="helpTitle">Keyboard Commands</h2>
+        <button id="btn-close-help" class="close-overlay" aria-label="Close keyboard commands help">Close (Esc)</button>
+      </header>
+      <div id="helpContent" class="overlay-body">
+        <table class="help-table">
+          <thead>
+            <tr>
+              <th scope="col">Command</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd>Tab</kbd> / <kbd>Shift + Tab</kbd></td>
+              <td>Navigate between input slots, graphing viewport, and buttons.</td>
+            </tr>
+            <tr>
+              <td><kbd>Arrow Keys</kbd></td>
+              <td>Move the graph cursor (crosshair) when focused on the graphing viewport.</td>
+            </tr>
+            <tr>
+              <td><kbd>Shift + Arrow Keys</kbd></td>
+              <td>Move the graph cursor (crosshair) faster (coarser adjustment).</td>
+            </tr>
+            <tr>
+              <td><kbd>?</kbd></td>
+              <td>Open this keyboard commands overlay.</td>
+            </tr>
+            <tr>
+              <td><kbd>H</kbd></td>
+              <td>Hear Graph (automated 2.5s sweep left-to-right).</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + T</kbd></td>
+              <td>Toggle Manual Keyboard Trace Mode.</td>
+            </tr>
+            <tr>
+              <td><kbd>Escape</kbd></td>
+              <td>Close this help overlay.</td>
+            </tr>
+            <tr>
+              <td><kbd>Enter</kbd></td>
+              <td>Force refresh and redraw the graphs.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

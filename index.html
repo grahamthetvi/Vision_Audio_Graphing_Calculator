@@ -24,42 +24,183 @@
     <!-- Main Viewport Area -->
     <main class="app-main" role="main">
       <!-- Sidebar Control Panel -->
-      <section class="sidebar-panel" aria-label="Equation Inputs">
-        <h2 class="section-title">Equations</h2>
-        <div class="input-group">
-          <label for="input-y1" class="input-label">Y1 =</label>
-          <input type="text" id="input-y1" class="equation-input" placeholder="e.g., x" autocomplete="off" spellcheck="false" aria-describedby="y1-help">
-        </div>
-        <div class="input-group">
-          <label for="input-y2" class="input-label">Y2 =</label>
-          <input type="text" id="input-y2" class="equation-input" placeholder="e.g., 2*x" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="input-group">
-          <label for="input-y3" class="input-label">Y3 =</label>
-          <input type="text" id="input-y3" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="input-group">
-          <label for="input-y4" class="input-label">Y4 =</label>
-          <input type="text" id="input-y4" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+      <section class="sidebar-panel" aria-label="Calculator Controls">
+        <div class="sidebar-section">
+          <h2 class="section-title">Equations</h2>
+          <div class="input-group">
+            <label for="input-y1" class="input-label">Y1 =</label>
+            <input type="text" id="input-y1" class="equation-input" placeholder="e.g., x" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="input-group">
+            <label for="input-y2" class="input-label">Y2 =</label>
+            <input type="text" id="input-y2" class="equation-input" placeholder="e.g., 2*x" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="input-group">
+            <label for="input-y3" class="input-label">Y3 =</label>
+            <input type="text" id="input-y3" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="input-group">
+            <label for="input-y4" class="input-label">Y4 =</label>
+            <input type="text" id="input-y4" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+          </div>
         </div>
 
-        <h2 class="section-title">Vertical Lines</h2>
-        <div class="input-group">
-          <label for="input-x1" class="input-label">X1 =</label>
-          <input type="text" id="input-x1" class="equation-input" placeholder="e.g., -2" autocomplete="off" spellcheck="false">
+        <div class="sidebar-section">
+          <h2 class="section-title">Vertical Lines</h2>
+          <div class="input-group">
+            <label for="input-x1" class="input-label">X1 =</label>
+            <input type="text" id="input-x1" class="equation-input" placeholder="e.g., -2" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="input-group">
+            <label for="input-x2" class="input-label">X2 =</label>
+            <input type="text" id="input-x2" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+          </div>
         </div>
-        <div class="input-group">
-          <label for="input-x2" class="input-label">X2 =</label>
-          <input type="text" id="input-x2" class="equation-input" placeholder="empty" autocomplete="off" spellcheck="false">
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Window Settings</h2>
+          <div class="window-settings-grid">
+            <div class="input-group-half">
+              <label for="input-xmin" class="input-label-small">Xmin</label>
+              <input type="text" id="input-xmin" class="window-input" value="-10" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-xmax" class="input-label-small">Xmax</label>
+              <input type="text" id="input-xmax" class="window-input" value="10" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-xscl" class="input-label-small">Xscl</label>
+              <input type="text" id="input-xscl" class="window-input" value="1" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-ymin" class="input-label-small">Ymin</label>
+              <input type="text" id="input-ymin" class="window-input" value="-10" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-ymax" class="input-label-small">Ymax</label>
+              <input type="text" id="input-ymax" class="window-input" value="10" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-yscl" class="input-label-small">Yscl</label>
+              <input type="text" id="input-yscl" class="window-input" value="1" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="btn-zoom-std" class="action-btn">Zoom Std (Shift+S)</button>
+            <button id="btn-zoom-fit" class="action-btn">Zoom Fit (Shift+F)</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Calculation Settings</h2>
+          <div class="input-group-settings">
+            <span class="settings-label">Angle Mode:</span>
+            <div class="toggle-buttons">
+              <button id="btn-mode-rad" class="toggle-btn active" aria-pressed="true">Rad (Alt+M)</button>
+              <button id="btn-mode-deg" class="toggle-btn" aria-pressed="false">Deg</button>
+            </div>
+          </div>
+          <div class="input-group-settings">
+            <label for="select-precision" class="settings-label">Precision:</label>
+            <select id="select-precision" class="settings-select">
+              <option value="float">Float (Alt+P)</option>
+              <option value="fix2">Fix 2</option>
+              <option value="fix3">Fix 3</option>
+              <option value="fix4">Fix 4</option>
+            </select>
+          </div>
+          <div class="table-settings-grid">
+            <div class="input-group-half">
+              <label for="input-tblstart" class="input-label-small">TblStart</label>
+              <input type="text" id="input-tblstart" class="window-input" value="0" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="input-group-half">
+              <label for="input-dtbl" class="input-label-small">ΔTbl</label>
+              <input type="text" id="input-dtbl" class="window-input" value="1" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="btn-toggle-table" class="action-btn">Table View (T)</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Numerical Solvers</h2>
+          <div class="solvers-grid">
+            <button id="btn-solver-val" class="solver-btn">1: Value (C)</button>
+            <button id="btn-solver-root" class="solver-btn">2: Zero/Root</button>
+            <button id="btn-solver-min" class="solver-btn">3: Minimum</button>
+            <button id="btn-solver-max" class="solver-btn">4: Maximum</button>
+            <button id="btn-solver-deriv" class="solver-btn">5: dy/dx</button>
+            <button id="btn-solver-int" class="solver-btn">6: Integral</button>
+            <button id="btn-solver-tangent" class="solver-btn">7: Tangent</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Statistics (STAT)</h2>
+          <div class="solvers-grid">
+            <button id="btn-stat-edit" class="solver-btn">Edit Lists (Alt+E)</button>
+            <button id="btn-stat-1var" class="solver-btn">1-Var Stats</button>
+            <button id="btn-stat-2var" class="solver-btn">2-Var Stats</button>
+            <button id="btn-stat-linreg" class="solver-btn">LinReg (ax+b)</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Distributions (DISTR)</h2>
+          <div class="solvers-grid">
+            <button id="btn-distr-normalcdf" class="solver-btn">normalcdf</button>
+            <button id="btn-distr-invnorm" class="solver-btn">invNorm (Alt+D)</button>
+          </div>
         </div>
       </section>
 
-      <!-- Graphing Viewport Section -->
-      <section class="graph-section" aria-label="Graph Canvas">
-        <div class="canvas-wrapper">
+      <!-- Graphing/Table Viewport Section -->
+      <section class="graph-section" aria-label="Calculator Viewport">
+        <div id="graph-view-wrapper" class="canvas-wrapper">
           <canvas id="graphCanvas" tabindex="0" role="application" aria-label="Graphing grid viewport. Use arrow keys to navigate the crosshairs. Press Escape or Tab to leave."></canvas>
+          <div id="canvas-solver-result" class="canvas-overlay-text hidden" aria-live="assertive"></div>
           <!-- Custom accessible legend / state reader for screen readers -->
           <div class="sr-only" id="graph-announcement" aria-live="assertive"></div>
+        </div>
+
+        <div id="table-view-wrapper" class="table-wrapper hidden">
+          <table id="dataTable" class="matrix-grid" tabindex="0" role="grid" aria-label="Data Table grid. Use Up and Down arrow keys to navigate rows. Press T to return to Graph.">
+            <thead>
+              <tr>
+                <th scope="col">X</th>
+                <th scope="col">Y1</th>
+                <th scope="col">Y2</th>
+                <th scope="col">Y3</th>
+                <th scope="col">Y4</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <!-- Rows populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="list-editor-wrapper" class="list-editor-wrapper hidden">
+          <div class="list-editor-header">
+            <button id="btn-list-clear-all" class="action-btn">Clear All Lists</button>
+            <button id="btn-list-back" class="action-btn secondary">Return to Graph (Esc)</button>
+          </div>
+          <div class="list-editor-table-container">
+            <table class="list-editor-table" role="grid" aria-label="List Editor spreadsheet. Columns L1, L2, L3. Use arrow keys to navigate.">
+              <thead>
+                <tr>
+                  <th scope="col">L1</th>
+                  <th scope="col">L2</th>
+                  <th scope="col">L3</th>
+                </tr>
+              </thead>
+              <tbody id="list-editor-body">
+                <!-- Rows populated dynamically -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
@@ -113,8 +254,44 @@
               <td>Toggle Manual Keyboard Trace Mode.</td>
             </tr>
             <tr>
+              <td><kbd>Alt + G</kbd></td>
+              <td>Draw Tangent Line (opens Tangent solver overlay directly).</td>
+            </tr>
+            <tr>
+              <td><kbd>Shift + S</kbd></td>
+              <td>Zoom Standard (Resets viewport bounds to -10 to 10 for both axes).</td>
+            </tr>
+            <tr>
+              <td><kbd>Shift + F</kbd></td>
+              <td>Zoom Fit (Fits the Y bounds to make all curves visible).</td>
+            </tr>
+            <tr>
+              <td><kbd>T</kbd></td>
+              <td>Toggle between Graph View and Data Table View.</td>
+            </tr>
+            <tr>
+              <td><kbd>C</kbd></td>
+              <td>Toggle Numerical Solvers Overlay Menu.</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + M</kbd></td>
+              <td>Toggle Angle Mode (Radian vs. Degree).</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + P</kbd></td>
+              <td>Cycle Decimal Precision (Float, Fix 2, Fix 3, Fix 4).</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + E</kbd></td>
+              <td>Toggle Spreadsheet List Editor.</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + D</kbd></td>
+              <td>Open Probability Distributions Menu (invNorm).</td>
+            </tr>
+            <tr>
               <td><kbd>Escape</kbd></td>
-              <td>Close this help overlay.</td>
+              <td>Close open help or solver overlays / Exit spreadsheet.</td>
             </tr>
             <tr>
               <td><kbd>Enter</kbd></td>
@@ -126,7 +303,41 @@
     </div>
   </div>
 
+  <!-- Numerical Solver Overlay Modal -->
+  <div id="solverOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="solverOverlayTitle">
+    <div class="overlay-content solver-overlay-content">
+      <header class="overlay-header">
+        <h2 id="solverOverlayTitle">Numerical Solvers</h2>
+        <button id="btn-close-solver" class="close-overlay" aria-label="Close Numerical Solvers">Close (Esc)</button>
+      </header>
+      <div class="overlay-body">
+        <!-- Solver Menu Options -->
+        <div id="solver-menu" class="solver-menu-list">
+          <button class="solver-menu-item" data-solver="val">1: Value (Calculate Y for given X)</button>
+          <button class="solver-menu-item" data-solver="root">2: Zero / Root Finder</button>
+          <button class="solver-menu-item" data-solver="min">3: Minimum (Find local minimum)</button>
+          <button class="solver-menu-item" data-solver="max">4: Maximum (Find local maximum)</button>
+          <button class="solver-menu-item" data-solver="deriv">5: dy/dx (Numerical Derivative)</button>
+          <button class="solver-menu-item" data-solver="int">6: Definite Integral (Area under curve)</button>
+          <button class="solver-menu-item" data-solver="tangent">7: Draw Tangent Line (Local linear approximation)</button>
+        </div>
+        <!-- Solver Active Form -->
+        <div id="solver-form" class="solver-form-container hidden">
+          <h3 id="solver-form-title" class="solver-form-header">Solver Name</h3>
+          <div id="solver-form-inputs" class="solver-form-fields">
+            <!-- Populated dynamically based on chosen solver -->
+          </div>
+          <div class="solver-form-buttons">
+            <button id="btn-solver-execute" class="action-btn">Calculate</button>
+            <button id="btn-solver-back" class="action-btn secondary">Back to Menu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+  <script src="StatEngine.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

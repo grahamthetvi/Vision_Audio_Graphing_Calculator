@@ -101,6 +101,13 @@
             </div>
           </div>
           <div class="input-group-settings">
+            <span class="settings-label">Math Mode:</span>
+            <div class="toggle-buttons">
+              <button id="btn-math-real" class="toggle-btn active" aria-pressed="true">Real (Alt+R)</button>
+              <button id="btn-math-complex" class="toggle-btn" aria-pressed="false">a+bi</button>
+            </div>
+          </div>
+          <div class="input-group-settings">
             <label for="select-precision" class="settings-label">Precision:</label>
             <select id="select-precision" class="settings-select">
               <option value="float">Float (Alt+P)</option>
@@ -121,6 +128,7 @@
           </div>
           <div class="button-row">
             <button id="btn-toggle-table" class="action-btn">Table View (T)</button>
+            <button id="btn-view-home" class="action-btn">Home Screen (Alt+H)</button>
           </div>
         </div>
 
@@ -202,6 +210,16 @@
             </table>
           </div>
         </div>
+
+        <div id="home-view-wrapper" class="home-wrapper hidden">
+          <div id="home-history" class="home-history" tabindex="0" role="log" aria-label="Calculation history. Use up and down arrow keys to review previous calculations.">
+            <!-- Expression-result pairs populated dynamically -->
+          </div>
+          <div class="home-input-line">
+            <span class="home-input-prompt" aria-hidden="true">Home &gt;</span>
+            <input type="text" id="home-input" placeholder="Enter calculation (e.g., 2 + 3 * 4)" autocomplete="off" spellcheck="false" aria-label="Home input prompt. Enter an expression and press Enter.">
+          </div>
+        </div>
       </section>
     </main>
 
@@ -276,6 +294,14 @@
             <tr>
               <td><kbd>Alt + M</kbd></td>
               <td>Toggle Angle Mode (Radian vs. Degree).</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + H</kbd></td>
+              <td>Toggle between Graphing Workspace and Home Screen.</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + R</kbd></td>
+              <td>Toggle Math Mode (Real vs. a+bi Complex).</td>
             </tr>
             <tr>
               <td><kbd>Alt + P</kbd></td>

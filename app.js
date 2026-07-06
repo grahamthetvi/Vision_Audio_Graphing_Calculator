@@ -77,7 +77,15 @@ class SpeechManager {
   prepareTextForSpeech(text) {
     return text
       .replace(/\bNaN\b/g, 'undefined')
+      .replace(/\bAns\b/gi, 'Answer')
+      .replace(/(\d)i\b/gi, '$1 i')
+      .replace(/\bi\b/gi, ' i ')
       .replace(/(^|[^a-zA-Z])-(\d)/g, '$1 negative $2')
+      .replace(/\+/g, ' plus ')
+      .replace(/([a-zA-Z0-9_)\s])\s*-\s*/g, '$1 minus ')
+      .replace(/\*/g, ' times ')
+      .replace(/\//g, ' divided by ')
+      .replace(/\^/g, ' to the power of ')
       .replace(/\by1\b/gi, 'Y 1')
       .replace(/\by2\b/gi, 'Y 2')
       .replace(/\by3\b/gi, 'Y 3')
@@ -204,6 +212,60 @@ class GraphEngine {
 // 2.5 Decoupled Calculation Engine (CalcEngine)
 // ============================================================================
 class CalcEngine {
+  /**
+   * Formats a value, handling numbers and math.js complex objects.
+   */
+  static formatComplexValue(val, precisionMode) {
+    if (typeof val === 'number') {
+      return CalcEngine.formatReal(val, precisionMode);
+    }
+    
+    // Check if it is a complex number from math.js
+    if (val && typeof val.re === 'number' && typeof val.im === 'number') {
+      const re = val.re;
+      const im = val.im;
+      
+      // If imaginary part is practically zero, format as real
+      if (Math.abs(im) < 1e-12) {
+        return CalcEngine.formatReal(re, precisionMode);
+      }
+      
+      // If real part is practically zero, format as imaginary
+      if (Math.abs(re) < 1e-12) {
+        return CalcEngine.formatImaginary(im, precisionMode);
+      }
+      
+      // Both real and imaginary parts are present: a + bi or a - bi
+      const reStr = CalcEngine.formatReal(re, precisionMode);
+      const imStr = CalcEngine.formatImaginary(Math.abs(im), precisionMode);
+      const sign = im > 0 ? ' + ' : ' - ';
+      
+      return `${reStr}${sign}${imStr}`;
+    }
+    
+    if (val && typeof val.toString === 'function') {
+      return val.toString();
+    }
+    return String(val);
+  }
+
+  static formatReal(val, precisionMode) {
+    if (typeof val !== 'number' || isNaN(val)) return "NaN";
+    if (!isFinite(val)) return val > 0 ? "Infinity" : "-Infinity";
+    if (precisionMode === 'float') {
+      return parseFloat(val.toFixed(6)).toString();
+    }
+    const prec = parseInt(precisionMode.slice(3)) || 2;
+    return val.toFixed(prec);
+  }
+
+  static formatImaginary(im, precisionMode) {
+    if (im === 1) return 'i';
+    if (im === -1) return '-i';
+    const formatted = CalcEngine.formatReal(im, precisionMode);
+    return `${formatted}i`;
+  }
+
   /**
    * Evaluates the equation at X, respecting Angle Mode (rad vs deg)
    * @param {Object} compiled - Compiled math.js expression
@@ -1129,11 +1191,16 @@ class App {
       sweepActive: false,
       angleMode: 'rad',
       precisionMode: 'float',
+      mathMode: 'real', // 'real' or 'complex'
+      homeHistory: [],
+      homeHistoryIndex: -1,
       tableModeActive: false,
       tableCurrentRowIndex: 0,
       activeSolver: null,
       integrationShading: { active: false, lower: 0, upper: 0, key: 'y1' }
     };
+
+    this.homeScope = { Ans: 0 };
 
     this.canvas = document.getElementById('graphCanvas');
     this.ctx = this.canvas.getContext('2d');
@@ -1143,6 +1210,7 @@ class App {
 
     this.initElements();
     this.initEvents();
+    this.initHomeEvents();
     this.resizeCanvas();
   }
 
@@ -1335,6 +1403,16 @@ class App {
     
     btnRad.addEventListener('click', () => setAngleMode('rad'));
     btnDeg.addEventListener('click', () => setAngleMode('deg'));
+
+    // Math Mode Toggle Buttons
+    const btnMathReal = document.getElementById('btn-math-real');
+    const btnMathComplex = document.getElementById('btn-math-complex');
+    if (btnMathReal && btnMathComplex) {
+      btnMathReal.addEventListener('click', () => this.setMathMode('real'));
+      btnMathComplex.addEventListener('click', () => this.setMathMode('complex'));
+      btnMathReal.addEventListener('focus', () => this.speechManager.speak("Math mode real button."));
+      btnMathComplex.addEventListener('focus', () => this.speechManager.speak("Math mode complex number button."));
+    }
 
     // Precision Selector
     const selectPrecision = document.getElementById('select-precision');
@@ -1672,6 +1750,19 @@ class App {
         e.preventDefault();
         const nextMode = this.state.angleMode === 'rad' ? 'deg' : 'rad';
         this.setAngleMode(nextMode);
+      }
+
+      // Alt+H: Toggle Home Screen View
+      if (e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        this.switchView(this.state.activeView === 'home' ? 'graph' : 'home');
+      }
+
+      // Alt+R: Toggle Math Mode (Real vs. Complex)
+      if (e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        const nextMode = this.state.mathMode === 'real' ? 'complex' : 'real';
+        this.setMathMode(nextMode);
       }
 
       // Alt+P: Cycle Decimal Precision
@@ -2599,16 +2690,295 @@ class App {
     }
   }
 
+  setMathMode(mode) {
+    this.state.mathMode = mode;
+    const btnMathReal = document.getElementById('btn-math-real');
+    const btnMathComplex = document.getElementById('btn-math-complex');
+    if (mode === 'real') {
+      if (btnMathReal) {
+        btnMathReal.classList.add('active');
+        btnMathReal.setAttribute('aria-pressed', 'true');
+      }
+      if (btnMathComplex) {
+        btnMathComplex.classList.remove('active');
+        btnMathComplex.setAttribute('aria-pressed', 'false');
+      }
+      this.speechManager.speak("Math mode set to real.");
+    } else {
+      if (btnMathComplex) {
+        btnMathComplex.classList.add('active');
+        btnMathComplex.setAttribute('aria-pressed', 'true');
+      }
+      if (btnMathReal) {
+        btnMathReal.classList.remove('active');
+        btnMathReal.setAttribute('aria-pressed', 'false');
+      }
+      this.speechManager.speak("Math mode set to a plus b i, complex.");
+    }
+    this.recalculateAllPoints();
+    if (this.state.tableModeActive) {
+      this.renderTable();
+    } else {
+      this.draw();
+    }
+  }
+
+  initHomeEvents() {
+    const homeInput = document.getElementById('home-input');
+    const homeHistory = document.getElementById('home-history');
+    const btnHome = document.getElementById('btn-view-home');
+
+    if (homeInput) {
+      homeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (this.state.homeHistoryIndex !== -1) {
+            const item = this.state.homeHistory[this.state.homeHistoryIndex];
+            if (item && !item.result.startsWith('Error:')) {
+              homeInput.value = item.result;
+              this.speechManager.speak(`Copied ${item.result} to input`, true);
+            }
+            this.state.homeHistoryIndex = -1;
+            this.renderHomeHistory();
+          } else {
+            this.evaluateHomeInput();
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.navigateHomeHistory(-1);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.navigateHomeHistory(1);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.switchView('graph');
+        }
+      });
+
+      homeInput.addEventListener('focus', () => {
+        this.speechManager.speak("Home input prompt. Enter an expression and press Enter.", true);
+      });
+    }
+
+    if (homeHistory) {
+      homeHistory.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.navigateHomeHistory(-1);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.navigateHomeHistory(1);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (this.state.homeHistoryIndex !== -1) {
+            const item = this.state.homeHistory[this.state.homeHistoryIndex];
+            if (item && !item.result.startsWith('Error:')) {
+              if (homeInput) {
+                homeInput.value = item.result;
+                homeInput.focus();
+                this.speechManager.speak(`Copied ${item.result} to input`, true);
+              }
+            }
+            this.state.homeHistoryIndex = -1;
+            this.renderHomeHistory();
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this.switchView('graph');
+        }
+      });
+
+      homeHistory.addEventListener('focus', () => {
+        this.speechManager.speak("Calculation history list. Use up and down arrow keys to navigate.", true);
+      });
+    }
+
+    if (btnHome) {
+      btnHome.addEventListener('click', () => {
+        this.switchView(this.state.activeView === 'home' ? 'graph' : 'home');
+      });
+      btnHome.addEventListener('focus', () => {
+        this.speechManager.speak("Home Screen button. Press to open freeform calculation home screen.", true);
+      });
+    }
+  }
+
+  evaluateHomeInput() {
+    const homeInput = document.getElementById('home-input');
+    if (!homeInput) return;
+    const expr = homeInput.value.trim();
+    if (expr === '') return;
+
+    try {
+      // Temporarily inject/cleanup degree overrides
+      if (this.state.angleMode === 'deg') {
+        this.homeScope.sin = (val) => {
+          if (typeof val === 'number') return Math.sin(val * Math.PI / 180);
+          if (val && typeof val.im === 'number') {
+            return math.sin(math.multiply(val, Math.PI / 180));
+          }
+          return Math.sin(Number(val) * Math.PI / 180);
+        };
+        this.homeScope.cos = (val) => {
+          if (typeof val === 'number') return Math.cos(val * Math.PI / 180);
+          if (val && typeof val.im === 'number') {
+            return math.cos(math.multiply(val, Math.PI / 180));
+          }
+          return Math.cos(Number(val) * Math.PI / 180);
+        };
+        this.homeScope.tan = (val) => {
+          if (typeof val === 'number') return Math.tan(val * Math.PI / 180);
+          if (val && typeof val.im === 'number') {
+            return math.tan(math.multiply(val, Math.PI / 180));
+          }
+          return Math.tan(Number(val) * Math.PI / 180);
+        };
+        this.homeScope.asin = (val) => {
+          const res = math.asin(val);
+          return math.multiply(res, 180 / Math.PI);
+        };
+        this.homeScope.acos = (val) => {
+          const res = math.acos(val);
+          return math.multiply(res, 180 / Math.PI);
+        };
+        this.homeScope.atan = (val) => {
+          const res = math.atan(val);
+          return math.multiply(res, 180 / Math.PI);
+        };
+      } else {
+        delete this.homeScope.sin;
+        delete this.homeScope.cos;
+        delete this.homeScope.tan;
+        delete this.homeScope.asin;
+        delete this.homeScope.acos;
+        delete this.homeScope.atan;
+      }
+
+      const rawResult = math.evaluate(expr, this.homeScope);
+
+      // Check mathMode real gate
+      if (this.state.mathMode === 'real') {
+        if (rawResult && typeof rawResult.im === 'number' && Math.abs(rawResult.im) > 1e-12) {
+          throw new Error("Non-Real Result");
+        }
+      }
+
+      // Format result
+      const formattedResult = CalcEngine.formatComplexValue(rawResult, this.state.precisionMode);
+
+      // Save to Ans
+      this.homeScope.Ans = rawResult;
+
+      // Add to history
+      this.state.homeHistory.push({ expr: expr, result: formattedResult });
+      if (this.state.homeHistory.length > 20) {
+        this.state.homeHistory.shift();
+      }
+      this.state.homeHistoryIndex = -1;
+
+      // Clear input
+      homeInput.value = '';
+      this.renderHomeHistory();
+
+      // Speak result
+      const speakText = `${expr} equals ${formattedResult}`;
+      this.speechManager.speak(speakText, true);
+
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.message === "Non-Real Result" ? "Non-Real Result" : err.message;
+      this.state.homeHistory.push({ expr: expr, result: `Error: ${errMsg}` });
+      if (this.state.homeHistory.length > 20) {
+        this.state.homeHistory.shift();
+      }
+      this.state.homeHistoryIndex = -1;
+      homeInput.value = '';
+      this.renderHomeHistory();
+      this.speechManager.speak(`Error: ${errMsg}`, true);
+    }
+  }
+
+  renderHomeHistory() {
+    const historyEl = document.getElementById('home-history');
+    if (!historyEl) return;
+    historyEl.innerHTML = '';
+
+    this.state.homeHistory.forEach((item, index) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'history-item';
+      itemEl.id = `history-item-${index}`;
+      if (index === this.state.homeHistoryIndex) {
+        itemEl.classList.add('highlighted');
+      }
+
+      const exprEl = document.createElement('div');
+      exprEl.className = 'history-expr';
+      exprEl.textContent = item.expr;
+
+      const resEl = document.createElement('div');
+      resEl.className = 'history-result';
+      resEl.textContent = item.result;
+
+      itemEl.appendChild(exprEl);
+      itemEl.appendChild(resEl);
+      historyEl.appendChild(itemEl);
+    });
+
+    // Scroll to bottom
+    historyEl.scrollTop = historyEl.scrollHeight;
+  }
+
+  navigateHomeHistory(dir) {
+    const len = this.state.homeHistory.length;
+    if (len === 0) return;
+
+    if (dir === -1) {
+      // Arrow Up
+      if (this.state.homeHistoryIndex === -1) {
+        this.state.homeHistoryIndex = len - 1;
+      } else {
+        this.state.homeHistoryIndex = Math.max(0, this.state.homeHistoryIndex - 1);
+      }
+    } else {
+      // Arrow Down
+      if (this.state.homeHistoryIndex !== -1) {
+        if (this.state.homeHistoryIndex === len - 1) {
+          this.state.homeHistoryIndex = -1;
+          this.speechManager.speak("Input line", true);
+          this.renderHomeHistory();
+          const homeInput = document.getElementById('home-input');
+          if (homeInput) homeInput.focus();
+          return;
+        } else {
+          this.state.homeHistoryIndex = this.state.homeHistoryIndex + 1;
+        }
+      }
+    }
+
+    if (this.state.homeHistoryIndex !== -1) {
+      this.renderHomeHistory();
+      const item = this.state.homeHistory[this.state.homeHistoryIndex];
+      const activeItem = document.getElementById(`history-item-${this.state.homeHistoryIndex}`);
+      if (activeItem) {
+        activeItem.scrollIntoView({ block: 'nearest' });
+      }
+      this.speechManager.speak(`${item.expr} equals ${item.result}`, true);
+    }
+  }
+
   switchView(viewName) {
     const graphWrapper = document.getElementById('graph-view-wrapper');
     const tableWrapper = document.getElementById('table-view-wrapper');
     const listEditorWrapper = document.getElementById('list-editor-wrapper');
+    const homeWrapper = document.getElementById('home-view-wrapper');
     const btnToggle = document.getElementById('btn-toggle-table');
+    const btnHome = document.getElementById('btn-view-home');
     
     // Hide all
     if (graphWrapper) graphWrapper.classList.add('hidden');
     if (tableWrapper) tableWrapper.classList.add('hidden');
     if (listEditorWrapper) listEditorWrapper.classList.add('hidden');
+    if (homeWrapper) homeWrapper.classList.add('hidden');
     
     // Deactivate trace if active and leaving graph
     if (viewName !== 'graph' && this.state.traceModeActive) {
@@ -2616,6 +2986,17 @@ class App {
     }
     
     this.state.activeView = viewName;
+
+    // Toggle active state for btnHome
+    if (btnHome) {
+      if (viewName === 'home') {
+        btnHome.classList.add('active');
+        btnHome.setAttribute('aria-pressed', 'true');
+      } else {
+        btnHome.classList.remove('active');
+        btnHome.setAttribute('aria-pressed', 'false');
+      }
+    }
 
     if (viewName === 'graph') {
       this.state.tableModeActive = false;
@@ -2645,6 +3026,15 @@ class App {
       this.renderListEditor();
       this.speechManager.speak("Switched to list editor. Columns List 1, List 2, and List 3. Use arrow keys to navigate cells. Type numbers and press Enter to save.");
       this.focusListCell('L1', 0);
+    } else if (viewName === 'home') {
+      this.state.tableModeActive = false;
+      if (homeWrapper) homeWrapper.classList.remove('hidden');
+      this.renderHomeHistory();
+      const homeInput = document.getElementById('home-input');
+      if (homeInput) {
+        homeInput.focus();
+      }
+      this.speechManager.speak("Switched to home screen calculation mode. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
     }
   }
 

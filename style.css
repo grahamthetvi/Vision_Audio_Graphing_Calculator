@@ -363,6 +363,13 @@ body {
   font-weight: 500;
 }
 
+.help-sr-note {
+  margin-top: 20px;
+  font-size: 20px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
 kbd {
   background-color: var(--color-surface-2);
   border: 2px solid var(--color-text-primary);

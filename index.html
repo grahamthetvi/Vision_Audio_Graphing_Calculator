@@ -55,7 +55,7 @@
             </button>
             <button id="btn-view-calc" class="view-switch-btn" aria-pressed="false">
               <span class="view-switch-name">Calculator</span>
-              <span class="view-switch-key">Alt+H</span>
+              <span class="view-switch-key">Alt+Shift+H</span>
             </button>
           </div>
         </div>
@@ -190,7 +190,7 @@
           <div class="input-group-settings">
             <label for="select-precision" class="settings-label">Precision:</label>
             <select id="select-precision" class="settings-select">
-              <option value="float">Float (Alt+P)</option>
+              <option value="float">Float (Alt+Shift+P)</option>
               <option value="fix2">Fix 2</option>
               <option value="fix3">Fix 3</option>
               <option value="fix4">Fix 4</option>
@@ -224,7 +224,7 @@
         <div class="sidebar-section">
           <h2 class="section-title">Statistics (STAT)</h2>
           <div class="solvers-grid">
-            <button id="btn-stat-edit" class="solver-btn">Edit Lists (Alt+E)</button>
+            <button id="btn-stat-edit" class="solver-btn">Edit Lists (Alt+Shift+E)</button>
             <button id="btn-stat-1var" class="solver-btn">1-Var Stats</button>
             <button id="btn-stat-2var" class="solver-btn">2-Var Stats</button>
             <button id="btn-stat-linreg" class="solver-btn">LinReg (ax+b)</button>
@@ -235,7 +235,7 @@
           <h2 class="section-title">Distributions (DISTR)</h2>
           <div class="solvers-grid">
             <button id="btn-distr-normalcdf" class="solver-btn">normalcdf</button>
-            <button id="btn-distr-invnorm" class="solver-btn">invNorm (Alt+D)</button>
+            <button id="btn-distr-invnorm" class="solver-btn">invNorm (Alt+Shift+D)</button>
           </div>
         </div>
       </section>
@@ -334,11 +334,11 @@
         </header>
         <div class="overlay-body">
           <p class="onboarding-text">If you use a screen reader such as NVDA, JAWS, VoiceOver, or Orca, we will stay quiet and let your screen reader do the talking, so you do not hear everything twice.</p>
-          <p class="onboarding-text">If not, this calculator will speak aloud as you work.</p>
+          <p class="onboarding-text">If not, the built-in voice will speak responses aloud as you work.</p>
           <p class="onboarding-text">You can change this any time in the Accessibility settings.</p>
           <div class="onboarding-buttons">
             <button id="btn-onboarding-sr-yes" class="action-btn">Yes, I use a screen reader</button>
-            <button id="btn-onboarding-sr-no" class="action-btn secondary">No, please talk to me</button>
+            <button id="btn-onboarding-sr-no" class="action-btn secondary">No, use the built-in voice</button>
           </div>
         </div>
       </div>
@@ -379,7 +379,7 @@
             </tr>
             <tr>
               <td><kbd>H</kbd></td>
-              <td>Hear Graph (automated 2.5s sweep left-to-right).</td>
+              <td>Hear Graph (automated 2.5s sweep left-to-right). Works when the graphing viewport is focused.</td>
             </tr>
             <tr>
               <td><kbd>Alt + T</kbd></td>
@@ -414,7 +414,7 @@
               <td>Toggle Angle Mode (Radian vs. Degree).</td>
             </tr>
             <tr>
-              <td><kbd>Alt + H</kbd></td>
+              <td><kbd>Alt + Shift + H</kbd></td>
               <td>Toggle between Graphing Workspace and Home Screen.</td>
             </tr>
             <tr>
@@ -422,15 +422,15 @@
               <td>Toggle Math Mode (Real vs. a+bi Complex).</td>
             </tr>
             <tr>
-              <td><kbd>Alt + P</kbd></td>
+              <td><kbd>Alt + Shift + P</kbd></td>
               <td>Cycle Decimal Precision (Float, Fix 2, Fix 3, Fix 4).</td>
             </tr>
             <tr>
-              <td><kbd>Alt + E</kbd></td>
+              <td><kbd>Alt + Shift + E</kbd></td>
               <td>Toggle Spreadsheet List Editor.</td>
             </tr>
             <tr>
-              <td><kbd>Alt + D</kbd></td>
+              <td><kbd>Alt + Shift + D</kbd></td>
               <td>Open Probability Distributions Menu (invNorm).</td>
             </tr>
             <tr>
@@ -447,6 +447,7 @@
             </tr>
           </tbody>
         </table>
+        <p class="help-sr-note">Screen reader note: Some shortcuts use <kbd>Alt + Shift</kbd> combinations to avoid conflicts with browser menus and NVDA. Single-letter keys (<kbd>G</kbd>, <kbd>T</kbd>, <kbd>C</kbd>) only work when you are not typing in a text field. <kbd>H</kbd> (Hear Graph) requires the graphing viewport to be focused.</p>
       </div>
     </div>
   </div>

@@ -533,13 +533,63 @@ class CalcEngine {
 // 3. Decoupled Graph Viewport Renderer
 // ============================================================================
 class GraphRenderer {
+  static getPalette(theme) {
+    if (theme === 'light') {
+      return {
+        background: '#F5F5F5',
+        grid: '#CCCCCC',
+        axis: '#1A1A1A',
+        label: '#1A1A1A',
+        axisWidth: 3,
+        functions: {
+          y1: '#B8860B',
+          y2: '#007A7A',
+          y3: '#8B008B',
+          y4: '#1B7A1B'
+        },
+        verticalLine: '#333333',
+        tangent: '#555555',
+        integrationFill: 'rgba(200, 60, 0, 0.28)',
+        integrationStroke: '#CC3300',
+        scatter: '#C71585',
+        scatterShadow: '#C71585',
+        cursor: '#CC3300',
+        cursorShadow: '#CC3300'
+      };
+    }
+    return {
+      background: '#000000',
+      grid: '#222222',
+      axis: '#FFFFFF',
+      label: '#FFFFFF',
+      axisWidth: 4,
+      functions: {
+        y1: '#FFFF00',
+        y2: '#00FFFF',
+        y3: '#FF00FF',
+        y4: '#39FF14'
+      },
+      verticalLine: '#FFFFFF',
+      tangent: '#FFFFFF',
+      integrationFill: 'rgba(255, 69, 0, 0.3)',
+      integrationStroke: '#FF4500',
+      scatter: '#FF007F',
+      scatterShadow: '#FF007F',
+      cursor: '#FF4500',
+      cursorShadow: '#FF4500'
+    };
+  }
+
   static draw(ctx, width, height, graphEngine, state) {
-    // 1. Clear Canvas (Deep Black background)
-    ctx.fillStyle = '#000000';
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const palette = GraphRenderer.getPalette(theme);
+
+    // 1. Clear Canvas
+    ctx.fillStyle = palette.background;
     ctx.fillRect(0, 0, width, height);
 
     // 2. Draw Grid Lines
-    ctx.strokeStyle = '#222222';
+    ctx.strokeStyle = palette.grid;
     ctx.lineWidth = 1;
     
     const xScl = graphEngine.xScl || 1;
@@ -574,7 +624,7 @@ class GraphRenderer {
         const minX = Math.min(lowerX, upperX);
         const maxX = Math.max(lowerX, upperX);
 
-        ctx.fillStyle = 'rgba(255, 69, 0, 0.3)'; // Semi-transparent neon orange-red
+        ctx.fillStyle = palette.integrationFill;
         ctx.beginPath();
 
         let started = false;
@@ -605,7 +655,7 @@ class GraphRenderer {
         ctx.closePath();
         ctx.fill();
         
-        ctx.strokeStyle = '#FF4500';
+        ctx.strokeStyle = palette.integrationStroke;
         ctx.lineWidth = 2;
         ctx.beginPath();
         const boundaryLowerPt = graphEngine.mathToPixel(lowerX, 0, width, height);
@@ -620,8 +670,8 @@ class GraphRenderer {
 
     // 3. Draw Primary Axes (X and Y)
     const origin = graphEngine.mathToPixel(0, 0, width, height);
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = palette.axis;
+    ctx.lineWidth = palette.axisWidth;
 
     // X Axis
     ctx.beginPath();
@@ -636,7 +686,7 @@ class GraphRenderer {
     ctx.stroke();
 
     // 4. Draw Axis Tick Marks and Numbers
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = palette.label;
     ctx.font = 'bold 18px Outfit';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -683,18 +733,11 @@ class GraphRenderer {
     ctx.fillText('0', origin.x - 10, origin.y + 10);
 
     // 5. Plot Equations (Y1 - Y4)
-    const functionColors = {
-      y1: '#FFFF00', // Neon Yellow
-      y2: '#00FFFF', // Neon Cyan
-      y3: '#FF00FF', // Neon Magenta
-      y4: '#39FF14'  // Neon Green
-    };
-
     for (const key of ['y1', 'y2', 'y3', 'y4']) {
       const points = state.equations[key].points;
       if (!points || points.length === 0) continue;
 
-      ctx.strokeStyle = functionColors[key];
+      ctx.strokeStyle = palette.functions[key];
       ctx.lineWidth = 4;
       ctx.beginPath();
 
@@ -721,7 +764,7 @@ class GraphRenderer {
 
     // 6. Plot Vertical Lines (X1, X2)
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = palette.verticalLine;
     ctx.setLineDash([8, 8]); // Dashed line to differentiate from curve graphs
     for (const key of ['x1', 'x2']) {
       const pixelX = state.equations[key].pixelX;
@@ -736,7 +779,7 @@ class GraphRenderer {
 
     // 6.5 Draw Tangent Line (Y_tangent) if active
     if (state.equations.y_tangent && state.equations.y_tangent.active && state.equations.y_tangent.points && state.equations.y_tangent.points.length > 0) {
-      ctx.strokeStyle = '#FFFFFF';
+      ctx.strokeStyle = palette.tangent;
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
@@ -763,7 +806,7 @@ class GraphRenderer {
 
     // 6.7 Draw Scatter Plot Points (L1 and L2)
     if (state.L1 && state.L2) {
-      ctx.fillStyle = '#FF007F'; // Neon Pink
+      ctx.fillStyle = palette.scatter;
       for (let i = 0; i < Math.min(state.L1.length, state.L2.length); i++) {
         const xVal = parseFloat(state.L1[i]);
         const yVal = parseFloat(state.L2[i]);
@@ -771,7 +814,7 @@ class GraphRenderer {
           const pt = graphEngine.mathToPixel(xVal, yVal, width, height);
           if (pt.x >= 0 && pt.x <= width && pt.y >= 0 && pt.y <= height) {
             ctx.shadowBlur = 10;
-            ctx.shadowColor = '#FF007F';
+            ctx.shadowColor = palette.scatterShadow;
             ctx.fillRect(pt.x - 7, pt.y - 7, 14, 14); // 14x14 box
           }
         }
@@ -783,7 +826,7 @@ class GraphRenderer {
     const cursor = state.cursor;
     const cursorPt = graphEngine.mathToPixel(cursor.x, cursor.y, width, height);
 
-    ctx.strokeStyle = '#FF4500'; // Neon Orange-Red
+    ctx.strokeStyle = palette.cursor;
     ctx.lineWidth = 2;
     ctx.setLineDash([4, 4]);
 
@@ -804,9 +847,9 @@ class GraphRenderer {
 
     // Glowing Dot at Cursor Center
     if (isFinite(cursor.y)) {
-      ctx.fillStyle = '#FF4500';
+      ctx.fillStyle = palette.cursor;
       ctx.shadowBlur = 15;
-      ctx.shadowColor = '#FF4500';
+      ctx.shadowColor = palette.cursorShadow;
       ctx.beginPath();
       ctx.arc(cursorPt.x, cursorPt.y, 8, 0, 2 * Math.PI);
       ctx.fill();
@@ -1222,6 +1265,13 @@ class PreferencesManager {
   }
 }
 
+function isTextInputFocused() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
 class App {
   constructor() {
     this.speechManager = new SpeechManager();
@@ -1554,7 +1604,7 @@ class App {
     if (btnViewCalc) {
       btnViewCalc.addEventListener('click', () => this.switchView('home'));
       btnViewCalc.addEventListener('focus', () => {
-        this.speechManager.speak("Calculator view button. Freeform home screen calculations. Shortcut Alt plus H.", true);
+        this.speechManager.speak("Calculator view button. Freeform home screen calculations. Shortcut Alt Shift H.", true);
       });
     }
 
@@ -1801,86 +1851,88 @@ class App {
 
     // Keyboard Shortcuts (Global)
     window.addEventListener('keydown', (e) => {
-      const activeEl = document.activeElement;
-      const isInputFocused = activeEl && activeEl.tagName === 'INPUT';
+      const isTextField = isTextInputFocused();
+      const canvasFocused = document.activeElement === this.canvas;
+      const altOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+      const altShift = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey;
 
       // Toggle Help with '?' (if not currently writing equations)
-      if (!isInputFocused && e.key === '?') {
+      if (!isTextField && e.key === '?') {
         e.preventDefault();
         this.toggleHelp(true);
       }
 
-      // Hear Graph (automated sweep) with 'H'
-      if (!isInputFocused && e.key.toLowerCase() === 'h') {
+      // Hear Graph (automated sweep) with 'H' — graph canvas must be focused
+      if (canvasFocused && !e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         this.startAudioSweep();
       }
 
       // Toggle Trace Mode with 'Alt + T'
-      if (e.altKey && e.key.toLowerCase() === 't') {
+      if (altOnly && e.key.toLowerCase() === 't') {
         e.preventDefault();
         this.toggleTraceMode();
         this.canvas.focus();
       }
 
       // Draw Tangent Line with 'Alt + G'
-      if (e.altKey && e.key.toLowerCase() === 'g') {
+      if (altOnly && e.key.toLowerCase() === 'g') {
         e.preventDefault();
         this.openSolver('tangent');
       }
 
       // Shift+S: Zoom Standard
-      if (!isInputFocused && e.shiftKey && e.key === 'S') {
+      if (!isTextField && e.shiftKey && !e.altKey && e.key === 'S') {
         e.preventDefault();
         this.zoomStandard();
       }
 
       // Shift+F: Zoom Fit
-      if (!isInputFocused && e.shiftKey && e.key === 'F') {
+      if (!isTextField && e.shiftKey && !e.altKey && e.key === 'F') {
         e.preventDefault();
         this.zoomFit();
       }
 
       // T: Toggle Table View
-      if (!isInputFocused && e.key.toLowerCase() === 't') {
+      if (!isTextField && !e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         this.toggleTableView();
       }
 
       // G: Switch to Graph View (Alt+G is handled separately for Tangent)
-      if (!isInputFocused && !e.altKey && e.key.toLowerCase() === 'g') {
+      if (!isTextField && !e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'g') {
         e.preventDefault();
         this.switchView('graph');
       }
 
       // C: Toggle Solver Overlay
-      if (!isInputFocused && e.key.toLowerCase() === 'c') {
+      if (!isTextField && !e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         this.openSolverMenuDirectly();
       }
 
       // Alt+M: Toggle Angle Mode
-      if (e.altKey && e.key.toLowerCase() === 'm') {
+      if (altOnly && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         const nextMode = this.state.angleMode === 'rad' ? 'deg' : 'rad';
         this.setAngleMode(nextMode);
       }
 
-      // Alt+H: Toggle Home Screen View
-      if (e.altKey && e.key.toLowerCase() === 'h') {
+      // Alt+Shift+H: Toggle Home Screen View
+      if (altShift && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         this.switchView(this.state.activeView === 'home' ? 'graph' : 'home');
       }
 
       // Alt+R: Toggle Math Mode (Real vs. Complex)
-      if (e.altKey && e.key.toLowerCase() === 'r') {
+      if (altOnly && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         const nextMode = this.state.mathMode === 'real' ? 'complex' : 'real';
         this.setMathMode(nextMode);
       }
 
-      // Alt+P: Cycle Decimal Precision
-      if (e.altKey && e.key.toLowerCase() === 'p') {
+      // Alt+Shift+P: Cycle Decimal Precision
+      if (altShift && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         const precisions = ['float', 'fix2', 'fix3', 'fix4'];
         const idx = precisions.indexOf(this.state.precisionMode);
@@ -1893,26 +1945,26 @@ class App {
         }
       }
 
-      // Alt+E: Toggle List Editor Spreadsheet
-      if (e.altKey && e.key.toLowerCase() === 'e') {
+      // Alt+Shift+E: Toggle List Editor Spreadsheet
+      if (altShift && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         this.switchView(this.state.activeView === 'list-editor' ? 'graph' : 'list-editor');
       }
 
-      // Alt+D: Open invNorm solver directly
-      if (e.altKey && e.key.toLowerCase() === 'd') {
+      // Alt+Shift+D: Open invNorm solver directly
+      if (altShift && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         this.openSolver('invnorm');
       }
 
       // Alt+A: Jump to Accessibility settings
-      if (e.altKey && e.key.toLowerCase() === 'a') {
+      if (altOnly && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         this.focusAccessibilitySection();
       }
 
       // S: Speak Stats Summary when solver overlay is open and focused
-      if (!isInputFocused && e.key.toLowerCase() === 's' && !this.solverOverlay.classList.contains('hidden') && this.currentStatsSpeechSummary) {
+      if (!isTextField && e.key.toLowerCase() === 's' && !this.solverOverlay.classList.contains('hidden') && this.currentStatsSpeechSummary) {
         e.preventDefault();
         this.speakSummaryLineByLine(this.currentStatsSpeechSummary);
       }
@@ -3171,7 +3223,7 @@ class App {
       if (homeInput) {
         homeInput.focus();
       }
-      this.speechManager.speak("Switched to home screen calculation mode. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
+      this.speechManager.speak("Switched to home screen calculation mode. Type math expressions and press Enter to evaluate. Press Alt Shift H to return to graph.");
     }
   }
 
@@ -3350,7 +3402,7 @@ class App {
     document.getElementById('onboarding-step-sr').classList.remove('hidden');
     const yes = document.getElementById('btn-onboarding-sr-yes');
     if (yes) yes.focus();
-    this.speechManager.speak('Do you use a screen reader? If yes, we will stay quiet and let your screen reader talk. If no, this calculator will speak aloud. You can change this later in Accessibility settings.');
+    this.speechManager.speak('Do you use a screen reader? If yes, we will stay quiet and let your screen reader talk. If no, we will use the built-in voice to speak responses aloud. You can change this later in Accessibility settings.');
   }
 
   finishOnboarding(usesScreenReader) {

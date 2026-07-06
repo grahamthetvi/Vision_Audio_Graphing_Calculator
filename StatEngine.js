@@ -11,6 +11,7 @@ class StatEngine {
    * Max error: 1.5e-7
    */
   static erf(x) {
+    if (x === 0) return 0;
     const sign = x < 0 ? -1 : 1;
     const absX = Math.abs(x);
     const p = 0.3275911;
@@ -57,6 +58,7 @@ class StatEngine {
   static invNorm(area, mean = 0, stdev = 1) {
     if (area <= 0 || area >= 1) throw new Error("area must be in (0, 1)");
     if (stdev <= 0) throw new Error("stdev must be positive");
+    if (area === 0.5) return mean;
 
     const isNeg = area < 0.5;
     const q = isNeg ? area : 1.0 - area;

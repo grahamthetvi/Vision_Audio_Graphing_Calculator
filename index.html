@@ -6,10 +6,27 @@
   <title>Talking Graphing Calculator</title>
   <meta name="description" content="A highly accessible, large-print, high-contrast talking graphing calculator designed for low-vision and blind users. Inspired by the Orion TI-84.">
   <link rel="stylesheet" href="style.css">
-  <!-- Load Outfit font for modern, highly readable sans-serif typography -->
+  <!-- Fonts: Outfit (default), Atkinson Hyperlegible (low-vision optimized), OpenDyslexic -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/opendyslexic" rel="stylesheet">
+  <!-- Apply saved accessibility preferences before first paint to avoid a flash of the wrong theme -->
+  <script>
+    (function () {
+      var el = document.documentElement;
+      var defaults = { theme: 'dark', font: 'outfit', weight: 'normal', outline: false };
+      var p = defaults;
+      try {
+        var raw = localStorage.getItem('vag.prefs');
+        if (raw) { p = Object.assign({}, defaults, JSON.parse(raw)); }
+      } catch (e) { p = defaults; }
+      el.setAttribute('data-theme', p.theme || 'dark');
+      el.setAttribute('data-font', p.font || 'outfit');
+      el.setAttribute('data-weight', p.weight || 'normal');
+      el.setAttribute('data-outline', p.outline ? 'on' : 'off');
+    })();
+  </script>
 </head>
 <body>
   <div class="app-container">
@@ -26,24 +43,66 @@
       <!-- Sidebar Control Panel -->
       <section class="sidebar-panel" aria-label="Calculator Controls">
         <div class="sidebar-section view-switcher-section">
-          <h2 class="section-title" id="view-switcher-label">Screen</h2>
-          <div class="view-switcher" role="tablist" aria-labelledby="view-switcher-label">
-            <button id="btn-view-graph" class="view-switch-btn active"
-                    role="tab" aria-selected="true" aria-controls="graph-view-wrapper">
-              Graph
+          <h2 class="section-title">View</h2>
+          <div class="view-switcher" role="group" aria-label="Switch workspace view between Graph, Table, and Calculator">
+            <button id="btn-view-graph" class="view-switch-btn active" aria-pressed="true">
+              <span class="view-switch-name">Graph</span>
+              <span class="view-switch-key">G</span>
             </button>
-            <button id="btn-view-table" class="view-switch-btn"
-                    role="tab" aria-selected="false" aria-controls="table-view-wrapper">
-              Table (T)
+            <button id="btn-view-table" class="view-switch-btn" aria-pressed="false">
+              <span class="view-switch-name">Table</span>
+              <span class="view-switch-key">T</span>
             </button>
-            <button id="btn-view-home" class="view-switch-btn"
-                    role="tab" aria-selected="false" aria-controls="home-view-wrapper">
-              Calculator (Alt+H)
+            <button id="btn-view-calc" class="view-switch-btn" aria-pressed="false">
+              <span class="view-switch-name">Calculator</span>
+              <span class="view-switch-key">Alt+H</span>
             </button>
           </div>
-          <p class="sr-only" id="current-screen-announce" aria-live="polite">
-            Current screen: Graph
-          </p>
+        </div>
+
+        <div class="sidebar-section" id="accessibility-section" aria-label="Accessibility settings">
+          <h2 class="section-title">Accessibility</h2>
+          <div class="input-group-settings">
+            <span class="settings-label">Talking Voice:</span>
+            <div class="toggle-buttons">
+              <button id="btn-voice-on" class="toggle-btn active" aria-pressed="true">On</button>
+              <button id="btn-voice-off" class="toggle-btn" aria-pressed="false">Off (SR)</button>
+            </div>
+          </div>
+          <div class="input-group-settings">
+            <span class="settings-label">Theme:</span>
+            <div class="toggle-buttons">
+              <button id="btn-theme-dark" class="toggle-btn active" aria-pressed="true">Dark</button>
+              <button id="btn-theme-light" class="toggle-btn" aria-pressed="false">Light</button>
+            </div>
+          </div>
+          <div class="input-group-settings">
+            <label for="select-font" class="settings-label">Font:</label>
+            <select id="select-font" class="settings-select">
+              <option value="outfit">Outfit</option>
+              <option value="atkinson">Atkinson (low vision)</option>
+              <option value="opendyslexic">OpenDyslexic</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          <div class="input-group-settings">
+            <span class="settings-label">Letter Weight:</span>
+            <div class="toggle-buttons">
+              <button id="btn-weight-normal" class="toggle-btn active" aria-pressed="true">Normal</button>
+              <button id="btn-weight-bold" class="toggle-btn" aria-pressed="false">Bold</button>
+              <button id="btn-weight-xbold" class="toggle-btn" aria-pressed="false">Extra</button>
+            </div>
+          </div>
+          <div class="input-group-settings">
+            <span class="settings-label">Letter Outline:</span>
+            <div class="toggle-buttons">
+              <button id="btn-outline-off" class="toggle-btn active" aria-pressed="true">Off</button>
+              <button id="btn-outline-on" class="toggle-btn" aria-pressed="false">On</button>
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="btn-view-privacy" class="action-btn secondary">Privacy &amp; License</button>
+          </div>
         </div>
 
         <div class="sidebar-section">
@@ -113,7 +172,7 @@
         </div>
 
         <div class="sidebar-section">
-          <h2 class="section-title">Calculator Settings</h2>
+          <h2 class="section-title">Calculation Settings</h2>
           <div class="input-group-settings">
             <span class="settings-label">Angle Mode:</span>
             <div class="toggle-buttons">
@@ -137,10 +196,6 @@
               <option value="fix4">Fix 4</option>
             </select>
           </div>
-        </div>
-
-        <div class="sidebar-section">
-          <h2 class="section-title">Table Settings</h2>
           <div class="table-settings-grid">
             <div class="input-group-half">
               <label for="input-tblstart" class="input-label-small">TblStart</label>
@@ -187,14 +242,14 @@
 
       <!-- Graphing/Table Viewport Section -->
       <section class="graph-section" aria-label="Calculator Viewport">
-        <div id="graph-view-wrapper" class="canvas-wrapper" role="tabpanel" aria-labelledby="btn-view-graph">
+        <div id="graph-view-wrapper" class="canvas-wrapper">
           <canvas id="graphCanvas" tabindex="0" role="application" aria-label="Graphing grid viewport. Use arrow keys to navigate the crosshairs. Press Escape or Tab to leave."></canvas>
           <div id="canvas-solver-result" class="canvas-overlay-text hidden" aria-live="assertive"></div>
           <!-- Custom accessible legend / state reader for screen readers -->
-          <div class="sr-only" id="graph-announcement" aria-live="assertive"></div>
+          <div class="sr-only" id="graph-announcement" aria-live="polite"></div>
         </div>
 
-        <div id="table-view-wrapper" class="table-wrapper hidden" role="tabpanel" aria-labelledby="btn-view-table">
+        <div id="table-view-wrapper" class="table-wrapper hidden">
           <table id="dataTable" class="matrix-grid" tabindex="0" role="grid" aria-label="Data Table grid. Use Up and Down arrow keys to navigate rows. Press T to return to Graph.">
             <thead>
               <tr>
@@ -211,7 +266,7 @@
           </table>
         </div>
 
-        <div id="list-editor-wrapper" class="list-editor-wrapper hidden" role="tabpanel" aria-label="List Editor">
+        <div id="list-editor-wrapper" class="list-editor-wrapper hidden">
           <div class="list-editor-header">
             <button id="btn-list-clear-all" class="action-btn">Clear All Lists</button>
             <button id="btn-list-back" class="action-btn secondary">Return to Graph (Esc)</button>
@@ -232,7 +287,7 @@
           </div>
         </div>
 
-        <div id="home-view-wrapper" class="home-wrapper hidden" role="tabpanel" aria-labelledby="btn-view-home">
+        <div id="home-view-wrapper" class="home-wrapper hidden">
           <div id="home-history" class="home-history" tabindex="0" role="log" aria-label="Calculation history. Use up and down arrow keys to review previous calculations.">
             <!-- Expression-result pairs populated dynamically -->
           </div>
@@ -250,6 +305,44 @@
       <div id="footer-trace-mode" class="trace-mode-badge hidden">Trace Active</div>
       <div id="footer-status">Speech Engine: Online</div>
     </footer>
+  </div>
+
+  <!-- First-run Onboarding Modal (Privacy / License + Screen Reader question) -->
+  <div id="onboardingOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <div class="overlay-content onboarding-content">
+      <!-- Step 1: Privacy & License -->
+      <div id="onboarding-step-privacy" class="onboarding-step">
+        <header class="overlay-header">
+          <h2 id="onboardingTitle">Welcome</h2>
+        </header>
+        <div class="overlay-body">
+          <p class="onboarding-text">A talking graphing calculator built for low-vision and blind users.</p>
+          <h3 class="onboarding-subhead">Your Privacy</h3>
+          <p class="onboarding-text">Everything runs entirely on your device. No data is ever sent anywhere. There are no servers, no accounts, no tracking, and no internet calls carrying your information. Your equations and settings stay in your browser.</p>
+          <h3 class="onboarding-subhead">License</h3>
+          <p class="onboarding-text">This software is free and open source under the MIT License. You may use, modify, and share it. It is provided "as is", without warranty of any kind.</p>
+          <div class="onboarding-buttons">
+            <button id="btn-onboarding-agree" class="action-btn">I Agree</button>
+            <button id="btn-privacy-close" class="action-btn secondary hidden" aria-label="Close Privacy and License">Close (Esc)</button>
+          </div>
+        </div>
+      </div>
+      <!-- Step 2: Screen Reader question -->
+      <div id="onboarding-step-sr" class="onboarding-step hidden">
+        <header class="overlay-header">
+          <h2 id="onboardingSrTitle">Do you use a screen reader?</h2>
+        </header>
+        <div class="overlay-body">
+          <p class="onboarding-text">If you use a screen reader such as NVDA, JAWS, VoiceOver, or Orca, we will stay quiet and let your screen reader do the talking, so you do not hear everything twice.</p>
+          <p class="onboarding-text">If not, this calculator will speak aloud as you work.</p>
+          <p class="onboarding-text">You can change this any time in the Accessibility settings.</p>
+          <div class="onboarding-buttons">
+            <button id="btn-onboarding-sr-yes" class="action-btn">Yes, I use a screen reader</button>
+            <button id="btn-onboarding-sr-no" class="action-btn secondary">No, please talk to me</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Help Overlay Modal -->
@@ -305,8 +398,12 @@
               <td>Zoom Fit (Fits the Y bounds to make all curves visible).</td>
             </tr>
             <tr>
+              <td><kbd>G</kbd></td>
+              <td>Switch to Graph View.</td>
+            </tr>
+            <tr>
               <td><kbd>T</kbd></td>
-              <td>Toggle between Graph and Table screens. You can also use the Screen tabs at the top of the sidebar.</td>
+              <td>Toggle between Graph View and Data Table View.</td>
             </tr>
             <tr>
               <td><kbd>C</kbd></td>
@@ -318,7 +415,7 @@
             </tr>
             <tr>
               <td><kbd>Alt + H</kbd></td>
-              <td>Toggle between Graph and Calculator screens. You can also use the Screen tabs at the top of the sidebar.</td>
+              <td>Toggle between Graphing Workspace and Home Screen.</td>
             </tr>
             <tr>
               <td><kbd>Alt + R</kbd></td>
@@ -335,6 +432,10 @@
             <tr>
               <td><kbd>Alt + D</kbd></td>
               <td>Open Probability Distributions Menu (invNorm).</td>
+            </tr>
+            <tr>
+              <td><kbd>Alt + A</kbd></td>
+              <td>Jump to Accessibility settings (voice, theme, font, letter weight and outline).</td>
             </tr>
             <tr>
               <td><kbd>Escape</kbd></td>

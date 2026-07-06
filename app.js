@@ -1152,9 +1152,83 @@ class AudioTraceEngine {
 // ============================================================================
 // 4. Application Orchestrator / UI Layer
 // ============================================================================
+// ============================================================================
+// Preferences Manager (persists accessibility settings in localStorage)
+// ============================================================================
+class PreferencesManager {
+  constructor() {
+    this.PREFS_KEY = 'vag.prefs';
+    this.CONSENT_KEY = 'vag.consent.v1';
+    this.defaults = {
+      selfVoicing: true,
+      theme: 'dark',
+      font: 'outfit',
+      weight: 'normal',
+      outline: false
+    };
+    this.prefs = this.load();
+  }
+
+  load() {
+    let p = Object.assign({}, this.defaults);
+    try {
+      const raw = localStorage.getItem(this.PREFS_KEY);
+      if (raw) p = Object.assign(p, JSON.parse(raw));
+    } catch (e) {
+      /* localStorage unavailable; use defaults */
+    }
+    return p;
+  }
+
+  save() {
+    try {
+      localStorage.setItem(this.PREFS_KEY, JSON.stringify(this.prefs));
+    } catch (e) {
+      /* ignore write failures (e.g. private mode) */
+    }
+  }
+
+  get(key) {
+    return this.prefs[key];
+  }
+
+  set(key, value) {
+    this.prefs[key] = value;
+    this.save();
+  }
+
+  hasConsent() {
+    try {
+      return localStorage.getItem(this.CONSENT_KEY) === 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  setConsent() {
+    try {
+      localStorage.setItem(this.CONSENT_KEY, 'true');
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  applyVisual() {
+    const el = document.documentElement;
+    el.setAttribute('data-theme', this.prefs.theme || 'dark');
+    el.setAttribute('data-font', this.prefs.font || 'outfit');
+    el.setAttribute('data-weight', this.prefs.weight || 'normal');
+    el.setAttribute('data-outline', this.prefs.outline ? 'on' : 'off');
+  }
+}
+
 class App {
   constructor() {
     this.speechManager = new SpeechManager();
+    this.prefs = new PreferencesManager();
+    // Apply persisted visual preferences and mute state before the UI initializes
+    this.prefs.applyVisual();
+    this.speechManager.isMuted = !this.prefs.get('selfVoicing');
     this.graphEngine = new GraphEngine(-10, 10, -10, 10, 1, 1);
     this.audioTraceEngine = new AudioTraceEngine();
     this.errorSpeechTimers = {};
@@ -1216,6 +1290,8 @@ class App {
     this.initElements();
     this.initEvents();
     this.initHomeEvents();
+    this.initAccessibilityEvents();
+    this.syncAccessibilityUI();
     this.resizeCanvas();
   }
 
@@ -1459,28 +1535,33 @@ class App {
       });
     });
 
-    // Screen view switcher tabs
+    // View Switcher (Graph / Table / Calculator)
     const btnViewGraph = document.getElementById('btn-view-graph');
-    const btnViewTable = document.getElementById('btn-view-table');
-    const btnViewHome = document.getElementById('btn-view-home');
-
     if (btnViewGraph) {
       btnViewGraph.addEventListener('click', () => this.switchView('graph'));
       btnViewGraph.addEventListener('focus', () => {
-        this.speechManager.speak("Graph screen tab. Press to switch to the graphing viewport.", true);
+        this.speechManager.speak("Graph view button. Shows the plotted equations. Shortcut G.", true);
       });
     }
+    const btnViewTable = document.getElementById('btn-view-table');
     if (btnViewTable) {
       btnViewTable.addEventListener('click', () => this.switchView('table'));
       btnViewTable.addEventListener('focus', () => {
-        this.speechManager.speak("Table screen tab. Press to switch to the data table. Shortcut: T.", true);
+        this.speechManager.speak("Table view button. Shows a table of X and Y values. Shortcut T.", true);
       });
     }
-    if (btnViewHome) {
-      btnViewHome.addEventListener('click', () => this.switchView('home'));
-      btnViewHome.addEventListener('focus', () => {
-        this.speechManager.speak("Calculator screen tab. Press to switch to freeform calculation mode. Shortcut: Alt plus H.", true);
+    const btnViewCalc = document.getElementById('btn-view-calc');
+    if (btnViewCalc) {
+      btnViewCalc.addEventListener('click', () => this.switchView('home'));
+      btnViewCalc.addEventListener('focus', () => {
+        this.speechManager.speak("Calculator view button. Freeform home screen calculations. Shortcut Alt plus H.", true);
       });
+    }
+
+    // Legacy toggle table button (may not exist in current layout)
+    const legacyToggleTable = document.getElementById('btn-toggle-table');
+    if (legacyToggleTable) {
+      legacyToggleTable.addEventListener('click', () => this.toggleTableView());
     }
 
     // Solver Buttons
@@ -1766,6 +1847,12 @@ class App {
         this.toggleTableView();
       }
 
+      // G: Switch to Graph View (Alt+G is handled separately for Tangent)
+      if (!isInputFocused && !e.altKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        this.switchView('graph');
+      }
+
       // C: Toggle Solver Overlay
       if (!isInputFocused && e.key.toLowerCase() === 'c') {
         e.preventDefault();
@@ -1818,6 +1905,12 @@ class App {
         this.openSolver('invnorm');
       }
 
+      // Alt+A: Jump to Accessibility settings
+      if (e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        this.focusAccessibilitySection();
+      }
+
       // S: Speak Stats Summary when solver overlay is open and focused
       if (!isInputFocused && e.key.toLowerCase() === 's' && !this.solverOverlay.classList.contains('hidden') && this.currentStatsSpeechSummary) {
         e.preventDefault();
@@ -1827,6 +1920,15 @@ class App {
       // Close overlays with Escape
       if (e.key === 'Escape') {
         let closedOverlay = false;
+        const onboarding = document.getElementById('onboardingOverlay');
+        if (onboarding && !onboarding.classList.contains('hidden')) {
+          e.preventDefault();
+          // First-run onboarding is blocking; only the "review later" mode closes on Escape
+          if (!this.onboardingActive) {
+            this.closePrivacyReview();
+          }
+          return;
+        }
         if (!this.overlay.classList.contains('hidden')) {
           e.preventDefault();
           this.toggleHelp(false);
@@ -1843,6 +1945,9 @@ class App {
         }
       }
     });
+
+    // Trap Tab focus within any open modal overlay (capture phase, runs first)
+    window.addEventListener('keydown', (e) => this.handleFocusTrap(e), true);
 
     // Help UI Events
     document.getElementById('btn-help').addEventListener('click', () => this.toggleHelp(true));
@@ -2105,10 +2210,12 @@ class App {
   toggleHelp(show) {
     if (show) {
       this.overlay.classList.remove('hidden');
+      this.updateBackgroundInert();
       document.getElementById('btn-close-help').focus();
       this.speechManager.speak("Keyboard commands dialog opened. Press tab to cycle options, press escape to close.");
     } else {
       this.overlay.classList.add('hidden');
+      this.updateBackgroundInert();
       document.getElementById('btn-help').focus();
       this.speechManager.speak("Dialog closed.");
     }
@@ -2753,6 +2860,7 @@ class App {
   initHomeEvents() {
     const homeInput = document.getElementById('home-input');
     const homeHistory = document.getElementById('home-history');
+    const btnHome = document.getElementById('btn-view-home');
 
     if (homeInput) {
       homeInput.addEventListener('keydown', (e) => {
@@ -2816,6 +2924,15 @@ class App {
 
       homeHistory.addEventListener('focus', () => {
         this.speechManager.speak("Calculation history list. Use up and down arrow keys to navigate.", true);
+      });
+    }
+
+    if (btnHome) {
+      btnHome.addEventListener('click', () => {
+        this.switchView(this.state.activeView === 'home' ? 'graph' : 'home');
+      });
+      btnHome.addEventListener('focus', () => {
+        this.speechManager.speak("Home Screen button. Press to open freeform calculation home screen.", true);
       });
     }
   }
@@ -2983,36 +3100,13 @@ class App {
     }
   }
 
-  updateScreenTabs(activeView) {
-    const tabs = {
-      graph: document.getElementById('btn-view-graph'),
-      table: document.getElementById('btn-view-table'),
-      home: document.getElementById('btn-view-home'),
-    };
-    const announce = document.getElementById('current-screen-announce');
-    const screenNames = { graph: 'Graph', table: 'Table', home: 'Calculator' };
-
-    for (const [view, btn] of Object.entries(tabs)) {
-      if (!btn) continue;
-      const isActive = activeView === view;
-      btn.classList.toggle('active', isActive);
-      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-    }
-
-    if (announce) {
-      if (screenNames[activeView]) {
-        announce.textContent = `Current screen: ${screenNames[activeView]}`;
-      } else if (activeView === 'list-editor') {
-        announce.textContent = 'Current screen: List Editor';
-      }
-    }
-  }
-
   switchView(viewName) {
     const graphWrapper = document.getElementById('graph-view-wrapper');
     const tableWrapper = document.getElementById('table-view-wrapper');
     const listEditorWrapper = document.getElementById('list-editor-wrapper');
     const homeWrapper = document.getElementById('home-view-wrapper');
+    const btnToggle = document.getElementById('btn-toggle-table');
+    const btnHome = document.getElementById('btn-view-home');
     
     // Hide all
     if (graphWrapper) graphWrapper.classList.add('hidden');
@@ -3026,11 +3120,28 @@ class App {
     }
     
     this.state.activeView = viewName;
-    this.updateScreenTabs(viewName);
+
+    // Highlight the active view in the sidebar View switcher
+    this.updateViewSwitcher(viewName);
+
+    // Toggle active state for btnHome
+    if (btnHome) {
+      if (viewName === 'home') {
+        btnHome.classList.add('active');
+        btnHome.setAttribute('aria-pressed', 'true');
+      } else {
+        btnHome.classList.remove('active');
+        btnHome.setAttribute('aria-pressed', 'false');
+      }
+    }
 
     if (viewName === 'graph') {
       this.state.tableModeActive = false;
       if (graphWrapper) graphWrapper.classList.remove('hidden');
+      if (btnToggle) {
+        btnToggle.textContent = "Table View (T)";
+        btnToggle.setAttribute('aria-pressed', 'false');
+      }
       this.canvas.focus();
       this.draw();
       this.speechManager.speak("Switched to graph view.");
@@ -3038,6 +3149,10 @@ class App {
       this.state.tableModeActive = true;
       this.state.tableCurrentRowIndex = 0;
       if (tableWrapper) tableWrapper.classList.remove('hidden');
+      if (btnToggle) {
+        btnToggle.textContent = "Graph View (T)";
+        btnToggle.setAttribute('aria-pressed', 'true');
+      }
       this.renderTable();
       const dataTable = document.getElementById('dataTable');
       if (dataTable) dataTable.focus();
@@ -3056,7 +3171,7 @@ class App {
       if (homeInput) {
         homeInput.focus();
       }
-      this.speechManager.speak("Switched to calculator screen. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
+      this.speechManager.speak("Switched to home screen calculation mode. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
     }
   }
 
@@ -3065,6 +3180,266 @@ class App {
       this.switchView('graph');
     } else {
       this.switchView('table');
+    }
+  }
+
+  updateViewSwitcher(viewName) {
+    // Maps a logical view to its sidebar switcher button.
+    // The list editor is a sub-mode reached via Statistics, so it maps to Table.
+    const activeButtonByView = {
+      graph: 'btn-view-graph',
+      table: 'btn-view-table',
+      'list-editor': 'btn-view-table',
+      home: 'btn-view-calc'
+    };
+    const activeId = activeButtonByView[viewName] || null;
+    ['btn-view-graph', 'btn-view-table', 'btn-view-calc'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      const isActive = id === activeId;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+  }
+
+  // ==========================================================================
+  // Accessibility settings (voice, theme, font, letter weight, letter outline)
+  // ==========================================================================
+  initAccessibilityEvents() {
+    const on = (id, handler) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', handler);
+    };
+
+    on('btn-voice-on', () => this.setSelfVoicing(true));
+    on('btn-voice-off', () => this.setSelfVoicing(false));
+    on('btn-theme-dark', () => this.setTheme('dark'));
+    on('btn-theme-light', () => this.setTheme('light'));
+    on('btn-weight-normal', () => this.setWeight('normal'));
+    on('btn-weight-bold', () => this.setWeight('bold'));
+    on('btn-weight-xbold', () => this.setWeight('xbold'));
+    on('btn-outline-off', () => this.setOutline(false));
+    on('btn-outline-on', () => this.setOutline(true));
+
+    const fontSelect = document.getElementById('select-font');
+    if (fontSelect) {
+      fontSelect.addEventListener('change', () => this.setFont(fontSelect.value));
+    }
+
+    on('btn-view-privacy', () => this.openPrivacyReview());
+
+    // Onboarding controls
+    on('btn-onboarding-agree', () => this.showOnboardingSrStep());
+    on('btn-onboarding-sr-yes', () => this.finishOnboarding(true));
+    on('btn-onboarding-sr-no', () => this.finishOnboarding(false));
+    on('btn-privacy-close', () => this.closePrivacyReview());
+  }
+
+  syncAccessibilityUI() {
+    const setPair = (activeId, inactiveIds) => {
+      const activate = (id, isActive) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('active', isActive);
+        el.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      };
+      activate(activeId, true);
+      inactiveIds.forEach((id) => activate(id, false));
+    };
+
+    const selfVoicing = this.prefs.get('selfVoicing');
+    setPair(selfVoicing ? 'btn-voice-on' : 'btn-voice-off',
+      [selfVoicing ? 'btn-voice-off' : 'btn-voice-on']);
+
+    const theme = this.prefs.get('theme');
+    setPair(theme === 'light' ? 'btn-theme-light' : 'btn-theme-dark',
+      [theme === 'light' ? 'btn-theme-dark' : 'btn-theme-light']);
+
+    const weight = this.prefs.get('weight');
+    ['normal', 'bold', 'xbold'].forEach((w) => {
+      const el = document.getElementById(`btn-weight-${w}`);
+      if (!el) return;
+      const isActive = w === weight;
+      el.classList.toggle('active', isActive);
+      el.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    const outline = this.prefs.get('outline');
+    setPair(outline ? 'btn-outline-on' : 'btn-outline-off',
+      [outline ? 'btn-outline-off' : 'btn-outline-on']);
+
+    const fontSelect = document.getElementById('select-font');
+    if (fontSelect) fontSelect.value = this.prefs.get('font');
+  }
+
+  setSelfVoicing(on) {
+    this.prefs.set('selfVoicing', on);
+    this.speechManager.isMuted = !on;
+    this.syncAccessibilityUI();
+    if (on) {
+      // Unmuted, so this confirmation is audible
+      this.speechManager.speak('Talking voice on.');
+    }
+  }
+
+  setTheme(theme) {
+    this.prefs.set('theme', theme);
+    this.prefs.applyVisual();
+    this.syncAccessibilityUI();
+    this.speechManager.speak(`${theme === 'light' ? 'Light' : 'Dark'} theme.`);
+    this.draw();
+  }
+
+  setFont(font) {
+    this.prefs.set('font', font);
+    this.prefs.applyVisual();
+    this.syncAccessibilityUI();
+    const names = { outfit: 'Outfit', atkinson: 'Atkinson Hyperlegible', opendyslexic: 'Open Dyslexic', system: 'System' };
+    this.speechManager.speak(`Font set to ${names[font] || font}.`);
+  }
+
+  setWeight(weight) {
+    this.prefs.set('weight', weight);
+    this.prefs.applyVisual();
+    this.syncAccessibilityUI();
+    const names = { normal: 'Normal', bold: 'Bold', xbold: 'Extra bold' };
+    this.speechManager.speak(`Letter weight ${names[weight] || weight}.`);
+  }
+
+  setOutline(on) {
+    this.prefs.set('outline', on);
+    this.prefs.applyVisual();
+    this.syncAccessibilityUI();
+    this.speechManager.speak(`Letter outline ${on ? 'on' : 'off'}.`);
+  }
+
+  focusAccessibilitySection() {
+    const section = document.getElementById('accessibility-section');
+    if (!section) return;
+    const firstBtn = document.getElementById('btn-voice-on');
+    if (firstBtn) firstBtn.focus();
+    this.speechManager.speak('Accessibility settings. Adjust talking voice, theme, font, letter weight, and letter outline.');
+  }
+
+  // ==========================================================================
+  // First-run onboarding (privacy + license, then screen-reader question)
+  // ==========================================================================
+  maybeShowOnboarding() {
+    if (this.prefs.hasConsent()) return;
+    this.showOnboarding();
+  }
+
+  showOnboarding() {
+    this.onboardingActive = true;
+    const overlay = document.getElementById('onboardingOverlay');
+    if (!overlay) return;
+    // Ensure we start on the privacy step in onboarding mode (I Agree, no Close)
+    document.getElementById('onboarding-step-privacy').classList.remove('hidden');
+    document.getElementById('onboarding-step-sr').classList.add('hidden');
+    document.getElementById('btn-onboarding-agree').classList.remove('hidden');
+    document.getElementById('btn-privacy-close').classList.add('hidden');
+    overlay.classList.remove('hidden');
+    this.updateBackgroundInert();
+    const agree = document.getElementById('btn-onboarding-agree');
+    if (agree) agree.focus();
+    this.speechManager.speak('Welcome. Everything runs on your device and no data is ever sent anywhere. This software is free and open source under the M I T license. Press I Agree to continue.');
+  }
+
+  showOnboardingSrStep() {
+    document.getElementById('onboarding-step-privacy').classList.add('hidden');
+    document.getElementById('onboarding-step-sr').classList.remove('hidden');
+    const yes = document.getElementById('btn-onboarding-sr-yes');
+    if (yes) yes.focus();
+    this.speechManager.speak('Do you use a screen reader? If yes, we will stay quiet and let your screen reader talk. If no, this calculator will speak aloud. You can change this later in Accessibility settings.');
+  }
+
+  finishOnboarding(usesScreenReader) {
+    this.prefs.set('selfVoicing', !usesScreenReader);
+    this.speechManager.isMuted = usesScreenReader;
+    this.prefs.setConsent();
+    this.syncAccessibilityUI();
+    this.onboardingActive = false;
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    this.updateBackgroundInert();
+    if (this.canvas) this.canvas.focus();
+    // Audible only if the built-in voice stays on
+    this.speechManager.speak('Setup complete. Welcome to the Talking Graphing Calculator.');
+  }
+
+  openPrivacyReview() {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (!overlay) return;
+    this.onboardingActive = false; // review mode: Escape may close
+    this.privacyReviewReturnFocus = document.activeElement;
+    document.getElementById('onboarding-step-privacy').classList.remove('hidden');
+    document.getElementById('onboarding-step-sr').classList.add('hidden');
+    document.getElementById('btn-onboarding-agree').classList.add('hidden');
+    document.getElementById('btn-privacy-close').classList.remove('hidden');
+    overlay.classList.remove('hidden');
+    this.updateBackgroundInert();
+    const closeBtn = document.getElementById('btn-privacy-close');
+    if (closeBtn) closeBtn.focus();
+    this.speechManager.speak('Privacy and license. Everything runs on your device. No data is ever sent anywhere. Licensed under the M I T license, provided as is.');
+  }
+
+  closePrivacyReview() {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    this.updateBackgroundInert();
+    if (this.privacyReviewReturnFocus && typeof this.privacyReviewReturnFocus.focus === 'function') {
+      this.privacyReviewReturnFocus.focus();
+    }
+    this.speechManager.speak('Closed.');
+  }
+
+  // ==========================================================================
+  // Modal focus management (trap Tab, make background inert)
+  // ==========================================================================
+  getOpenOverlay() {
+    const onboarding = document.getElementById('onboardingOverlay');
+    if (onboarding && !onboarding.classList.contains('hidden')) return onboarding;
+    if (this.solverOverlay && !this.solverOverlay.classList.contains('hidden')) return this.solverOverlay;
+    if (this.overlay && !this.overlay.classList.contains('hidden')) return this.overlay;
+    return null;
+  }
+
+  updateBackgroundInert() {
+    const container = document.querySelector('.app-container');
+    if (!container) return;
+    if (this.getOpenOverlay()) {
+      container.setAttribute('inert', '');
+      container.setAttribute('aria-hidden', 'true');
+    } else {
+      container.removeAttribute('inert');
+      container.removeAttribute('aria-hidden');
+    }
+  }
+
+  focusablesWithin(container) {
+    const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    return Array.from(container.querySelectorAll(selector)).filter((el) => {
+      return !el.disabled && el.offsetParent !== null;
+    });
+  }
+
+  handleFocusTrap(e) {
+    if (e.key !== 'Tab') return;
+    const overlay = this.getOpenOverlay();
+    if (!overlay) return;
+    const focusables = this.focusablesWithin(overlay);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (!overlay.contains(document.activeElement)) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
     }
   }
 
@@ -3345,6 +3720,7 @@ class App {
       document.activeElement.blur();
     }
     this.solverOverlay.classList.remove('hidden');
+    this.updateBackgroundInert();
     this.showSolverMenu();
     document.getElementById('btn-close-solver').focus();
     this.speechManager.speak("Numerical Solvers menu opened. Select solver 1 through 6 or press escape to close.");
@@ -3380,6 +3756,7 @@ class App {
 
   closeSolverOverlay() {
     this.solverOverlay.classList.add('hidden');
+    this.updateBackgroundInert();
     this.canvas.focus();
     this.speechManager.speak("Solver menu closed.");
   }
@@ -3443,6 +3820,7 @@ class App {
 
     this.state.activeSolver = solverKey;
     this.solverOverlay.classList.remove('hidden');
+    this.updateBackgroundInert();
     document.getElementById('solver-menu').classList.add('hidden');
     
     const form = document.getElementById('solver-form');
@@ -4063,4 +4441,5 @@ class App {
 // Instantiate the App when document loads
 window.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
+  window.app.maybeShowOnboarding();
 });

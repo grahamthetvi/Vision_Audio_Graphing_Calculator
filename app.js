@@ -1201,6 +1201,7 @@ class App {
       tableModeActive: false,
       tableCurrentRowIndex: 0,
       activeSolver: null,
+      preSolverEquationKey: null,
       integrationShading: { active: false, lower: 0, upper: 0, key: 'y1' }
     };
 
@@ -3335,9 +3336,34 @@ class App {
   showSolverMenu() {
     this.state.activeSolver = null;
     document.getElementById('solver-menu').classList.remove('hidden');
-    document.getElementById('solver-form').classList.add('hidden');
+    const solverForm = document.getElementById('solver-form');
+    const returningFromSolver = !solverForm.classList.contains('hidden');
+    solverForm.classList.add('hidden');
+
+    if (document.activeElement && solverForm.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+
     const existingResult = document.getElementById('solver-result-panel');
     if (existingResult) existingResult.remove();
+
+    if (this.state.preSolverEquationKey != null) {
+      this.state.activeEquationKey = this.state.preSolverEquationKey;
+      this.state.preSolverEquationKey = null;
+      this.updateActiveEquationUI();
+    }
+
+    const closeBtn = document.getElementById('btn-close-solver');
+    if (closeBtn) {
+      closeBtn.focus();
+    } else {
+      const firstMenuItem = document.querySelector('.solver-menu-item');
+      if (firstMenuItem) firstMenuItem.focus();
+    }
+
+    if (returningFromSolver) {
+      this.speechManager.speak("Back to solver menu.");
+    }
   }
 
   closeSolverOverlay() {
@@ -3398,6 +3424,7 @@ class App {
 
     const isCurveSolver = ['val', 'root', 'min', 'max', 'deriv', 'int', 'tangent'].includes(solverKey);
     if (isCurveSolver) {
+      this.state.preSolverEquationKey = this.state.activeEquationKey;
       this.state.activeEquationKey = this.resolveDefaultCurveKey();
       this.updateActiveEquationUI();
     }

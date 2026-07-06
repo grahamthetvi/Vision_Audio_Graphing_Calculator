@@ -1475,6 +1475,7 @@ class App {
 
     // Solver Overlay Actions
     document.getElementById('btn-close-solver').addEventListener('click', () => this.closeSolverOverlay());
+    document.getElementById('btn-solver-close').addEventListener('click', () => this.closeSolverOverlay());
     document.getElementById('btn-solver-back').addEventListener('click', () => this.showSolverMenu());
     document.getElementById('btn-solver-execute').addEventListener('click', () => this.executeSolver());
 
@@ -3353,16 +3354,11 @@ class App {
       this.updateActiveEquationUI();
     }
 
-    const closeBtn = document.getElementById('btn-close-solver');
-    if (closeBtn) {
-      closeBtn.focus();
-    } else {
-      const firstMenuItem = document.querySelector('.solver-menu-item');
-      if (firstMenuItem) firstMenuItem.focus();
-    }
+    const firstMenuItem = document.querySelector('.solver-menu-item[data-solver="val"]');
+    if (firstMenuItem) firstMenuItem.focus();
 
     if (returningFromSolver) {
-      this.speechManager.speak("Back to solver menu.");
+      this.speechManager.speak("Solver list.");
     }
   }
 

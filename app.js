@@ -571,6 +571,8 @@ class GraphRenderer {
       if (points && points.length > 0) {
         const lowerX = state.integrationShading.lower;
         const upperX = state.integrationShading.upper;
+        const minX = Math.min(lowerX, upperX);
+        const maxX = Math.max(lowerX, upperX);
 
         ctx.fillStyle = 'rgba(255, 69, 0, 0.3)'; // Semi-transparent neon orange-red
         ctx.beginPath();
@@ -578,14 +580,14 @@ class GraphRenderer {
         let started = false;
         let lastPt = null;
 
-        const startPt = graphEngine.mathToPixel(lowerX, 0, width, height);
+        const startPt = graphEngine.mathToPixel(minX, 0, width, height);
         ctx.moveTo(startPt.x, startPt.y);
 
         for (const pt of points) {
           const mathPt = graphEngine.pixelToMath(pt.x, pt.y, width, height);
           const mathX = mathPt.x;
 
-          if (mathX >= lowerX && mathX <= upperX) {
+          if (mathX >= minX && mathX <= maxX) {
             if (!isNaN(pt.y) && isFinite(pt.y)) {
               ctx.lineTo(pt.x, pt.y);
               started = true;
@@ -594,7 +596,7 @@ class GraphRenderer {
           }
         }
 
-        const endPt = graphEngine.mathToPixel(upperX, 0, width, height);
+        const endPt = graphEngine.mathToPixel(maxX, 0, width, height);
         if (started && lastPt) {
           ctx.lineTo(endPt.x, lastPt.y);
         }
@@ -606,10 +608,12 @@ class GraphRenderer {
         ctx.strokeStyle = '#FF4500';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(startPt.x, 0);
-        ctx.lineTo(startPt.x, height);
-        ctx.moveTo(endPt.x, 0);
-        ctx.lineTo(endPt.x, height);
+        const boundaryLowerPt = graphEngine.mathToPixel(lowerX, 0, width, height);
+        const boundaryUpperPt = graphEngine.mathToPixel(upperX, 0, width, height);
+        ctx.moveTo(boundaryLowerPt.x, 0);
+        ctx.lineTo(boundaryLowerPt.x, height);
+        ctx.moveTo(boundaryUpperPt.x, 0);
+        ctx.lineTo(boundaryUpperPt.x, height);
         ctx.stroke();
       }
     }

@@ -76,7 +76,8 @@ class SpeechManager {
    */
   prepareTextForSpeech(text) {
     return text
-      .replace(/-/g, ' negative ')
+      .replace(/\bNaN\b/g, 'undefined')
+      .replace(/(^|[^a-zA-Z])-(\d)/g, '$1 negative $2')
       .replace(/\by1\b/gi, 'Y 1')
       .replace(/\by2\b/gi, 'Y 2')
       .replace(/\by3\b/gi, 'Y 3')
@@ -162,7 +163,7 @@ class GraphEngine {
             const pixelY = height - ((mathY - this.yMin) / (this.yMax - this.yMin)) * height;
             points.push({ x: pixelX, y: pixelY, mathY: mathY });
           } else {
-            points.push({ x: pixelX, y: NaN, mathY: NaN });
+            points.push({ x: pixelX, y: NaN, mathY: mathY });
           }
         } catch (evalErr) {
           points.push({ x: pixelX, y: NaN, mathY: NaN });
@@ -352,25 +353,35 @@ class CalcEngine {
       const yRight = this.evaluateAt(compiled, x + step, angleMode);
 
       if (type === 'max') {
-        if (yLeft > y && yLeft > yRight) {
-          x = x - step;
-        } else if (yRight > y && yRight > yLeft) {
-          x = x + step;
+        if (isFinite(yLeft) && isFinite(yRight)) {
+          if (yLeft > y && yLeft > yRight) {
+            x = x - step;
+          } else if (yRight > y && yRight > yLeft) {
+            x = x + step;
+          } else {
+            step /= 2;
+          }
         } else {
           step /= 2;
         }
       } else {
-        if (yLeft < y && yLeft < yRight) {
-          x = x - step;
-        } else if (yRight < y && yRight > yLeft) {
-          x = x + step;
+        if (isFinite(yLeft) && isFinite(yRight)) {
+          if (yLeft < y && yLeft < yRight) {
+            x = x - step;
+          } else if (yRight < y && yRight < yLeft) {
+            x = x + step;
+          } else {
+            step /= 2;
+          }
         } else {
           step /= 2;
         }
       }
     }
 
-    return { x, y: this.evaluateAt(compiled, x, angleMode) };
+    const finalY = this.evaluateAt(compiled, x, angleMode);
+    if (isNaN(finalY) || !isFinite(finalY)) return null;
+    return { x, y: finalY };
   }
 
   /**
@@ -381,7 +392,7 @@ class CalcEngine {
     try {
       const y1 = this.evaluateAt(compiled, xVal - h, angleMode);
       const y2 = this.evaluateAt(compiled, xVal + h, angleMode);
-      if (isNaN(y1) || isNaN(y2)) return NaN;
+      if (isNaN(y1) || isNaN(y2) || !isFinite(y1) || !isFinite(y2)) return NaN;
       return (y2 - y1) / (2 * h);
     } catch {
       return NaN;
@@ -398,12 +409,12 @@ class CalcEngine {
       const yStart = this.evaluateAt(compiled, lower, angleMode);
       const yEnd = this.evaluateAt(compiled, upper, angleMode);
       
-      if (isNaN(yStart) || isNaN(yEnd)) return NaN;
+      if (isNaN(yStart) || isNaN(yEnd) || !isFinite(yStart) || !isFinite(yEnd)) return NaN;
       
       let sum = 0.5 * (yStart + yEnd);
       for (let i = 1; i < N; i++) {
         const yVal = this.evaluateAt(compiled, lower + i * h, angleMode);
-        if (isNaN(yVal)) return NaN;
+        if (isNaN(yVal) || !isFinite(yVal)) return NaN;
         sum += yVal;
       }
       return sum * h;
@@ -886,7 +897,7 @@ class AudioTraceEngine {
     }
   }
 
-  start() {
+  start(initialMuted = false) {
     this.ensureRunning();
     if (!this.ctx) return;
 
@@ -895,7 +906,8 @@ class AudioTraceEngine {
       const t = this.ctx.currentTime;
       this.masterGain.gain.cancelScheduledValues(t);
       this.masterGain.gain.setValueAtTime(0.0, t);
-      this.masterGain.gain.linearRampToValueAtTime(0.4, t + 0.05); // Smooth fade in
+      const targetGain = initialMuted ? 0.0 : 0.4;
+      this.masterGain.gain.linearRampToValueAtTime(targetGain, t + 0.05); // Smooth fade in
     }
   }
 
@@ -1507,7 +1519,8 @@ class App {
           this.hideCanvasSolverResult();
           this.state.integrationShading.active = false;
 
-          this.audioTraceEngine.start();
+          const isCurrentPointFinite = isFinite(this.state.cursor.y);
+          this.audioTraceEngine.start(!isCurrentPointFinite);
           this.updateTraceAudioForCurrentPoint();
           this.checkAndTriggerMilestoneEvents();
           
@@ -1585,7 +1598,8 @@ class App {
         this.canvas.focus();
         this.draw();
 
-        this.audioTraceEngine.start();
+        const isCurrentPointFinite = isFinite(this.state.cursor.y);
+        this.audioTraceEngine.start(!isCurrentPointFinite);
         this.updateTraceAudioForCurrentPoint();
         this.checkAndTriggerMilestoneEvents();
         this.announceTraceCoordinates();
@@ -1909,6 +1923,17 @@ class App {
     }
     
     const valStr = formattedVal.toString();
+
+    // Handle scientific notation (e.g. 1.5e+12, -3e-5)
+    const sciMatch = valStr.match(/^(-?)([\d.]+)e([+-]?\d+)$/i);
+    if (sciMatch) {
+      const sign = sciMatch[1] === '-' ? 'negative ' : '';
+      const mantissa = sciMatch[2];
+      const exponent = parseInt(sciMatch[3]);
+      const expSign = exponent < 0 ? 'negative ' : '';
+      return `${sign}${mantissa} times 10 to the power of ${expSign}${Math.abs(exponent)}`;
+    }
+
     const parts = valStr.split('.');
     const integer = parseInt(parts[0]);
     const decimal = parts[1];
@@ -2059,15 +2084,18 @@ class App {
       const tNorm = elapsed / sweepDuration;
       const x = xMin + tNorm * (xMax - xMin);
 
-      // Check scatter plot crossings
+      // Check scatter plot crossings (only for data points within viewport)
       if (this.state.L1 && this.state.L2) {
         for (let i = 0; i < Math.min(this.state.L1.length, this.state.L2.length); i++) {
           const xData = parseFloat(this.state.L1[i]);
           const yData = parseFloat(this.state.L2[i]);
           if (!isNaN(xData) && !isNaN(yData) && !poppedPoints[i]) {
-            if (x >= xData) {
-              poppedPoints[i] = true;
-              this.audioTraceEngine.playScatterPop();
+            // Only pop for points within the visible viewport
+            if (xData >= xMin && xData <= xMax && yData >= yMin && yData <= yMax) {
+              if (x >= xData) {
+                poppedPoints[i] = true;
+                this.audioTraceEngine.playScatterPop();
+              }
             }
           }
         }
@@ -2127,12 +2155,16 @@ class App {
               }
             } else {
               this.audioTraceEngine.setMuted(true);
+              this.audioTraceEngine.setVibrato(false);
+              prevFDouble = null;
             }
 
             prevXVal = x;
             prevYVal = yToUse;
           } else {
             this.audioTraceEngine.setMuted(true);
+            this.audioTraceEngine.setVibrato(false);
+            prevFDouble = null;
             this.state.cursor.x = Math.round(x * 100) / 100;
             this.state.cursor.y = NaN;
             this.draw();
@@ -2195,7 +2227,8 @@ class App {
       this.previousTraceX = this.state.cursor.x;
       this.previousTraceY = this.state.cursor.y;
 
-      this.audioTraceEngine.start();
+      const isCurrentPointFinite = isFinite(this.state.cursor.y);
+      this.audioTraceEngine.start(!isCurrentPointFinite);
       this.updateTraceAudioForCurrentPoint();
       this.announceTraceCoordinates();
       this.resetTraceInactivityTimer();
@@ -2300,7 +2333,8 @@ class App {
         this.previousTraceX = this.state.cursor.x;
         this.previousTraceY = this.state.cursor.y;
 
-        this.audioTraceEngine.start();
+        const isCursorFinite = isFinite(this.state.cursor.y);
+        this.audioTraceEngine.start(!isCursorFinite);
         this.updateTraceAudioForCurrentPoint();
         this.draw();
         this.announceTraceCoordinates();
@@ -2697,6 +2731,11 @@ class App {
             const valNum = parseFloat(valStr);
             if (!isNaN(valNum)) {
               this.state[col][row] = valNum;
+            } else {
+              // Invalid number: revert, keep focus, announce error
+              input.value = this.state[col][row] !== "" ? this.state[col][row] : "";
+              this.speechManager.speak("Invalid number. Entry reverted.", true);
+              return;
             }
           }
           this.draw();
@@ -3425,6 +3464,9 @@ class App {
           `Correlation coefficient r is ${fSp(result.r)}`,
           `Coefficient of determination r squared is ${fSp(result.r2)}`
         ];
+
+        // Automatically pipe regression equation to Y4 slot
+        this.copyRegressionLineToY4();
 
         setTimeout(() => {
           const btnCopy = document.getElementById('btn-macro-copy-y4');

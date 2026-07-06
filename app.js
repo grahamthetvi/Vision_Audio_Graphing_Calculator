@@ -3323,6 +3323,9 @@ class App {
   }
 
   openSolverMenuDirectly() {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
     this.solverOverlay.classList.remove('hidden');
     this.showSolverMenu();
     document.getElementById('btn-close-solver').focus();
@@ -3343,12 +3346,60 @@ class App {
     this.speechManager.speak("Solver menu closed.");
   }
 
+  resolveDefaultCurveKey() {
+    const activeKey = this.state.activeEquationKey;
+    const yKeys = ['y1', 'y2', 'y3', 'y4'];
+    if (yKeys.includes(activeKey) && this.state.equations[activeKey]?.compiled) {
+      return activeKey;
+    }
+    return yKeys.find(k => this.state.equations[k].compiled) || 'y1';
+  }
+
+  generateCurveSelectorHTML() {
+    let optionsHtml = '';
+    const defaultSelected = this.resolveDefaultCurveKey();
+
+    for (const key of ['y1', 'y2', 'y3', 'y4']) {
+      const eq = this.state.equations[key];
+      let status = '';
+      if (eq.text.trim() === '') {
+        status = '(empty)';
+      } else if (eq.error) {
+        status = '(error)';
+      } else {
+        const expr = eq.text.length > 12 ? eq.text.substring(0, 10) + '...' : eq.text;
+        status = `(${key.toUpperCase()} = ${expr})`;
+      }
+      
+      const isSelected = key === defaultSelected ? 'selected' : '';
+      optionsHtml += `<option value="${key}" ${isSelected}>${key.toUpperCase()} ${status}</option>`;
+    }
+
+    return `
+      <div class="input-group" style="margin-bottom: 15px;">
+        <label for="select-solver-curve" class="input-label">Select Curve:</label>
+        <select id="select-solver-curve" class="settings-select" style="font-size: 26px; font-weight: 600; flex: 1;">
+          ${optionsHtml}
+        </select>
+      </div>
+    `;
+  }
+
   openSolver(solverKey) {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
     if (solverKey !== 'tangent' && this.state.equations.y_tangent) {
       this.state.equations.y_tangent.active = false;
       this.state.equations.y_tangent.points = [];
       this.state.equations.y_tangent.compiled = null;
       this.state.equations.y_tangent.text = '';
+    }
+
+    const isCurveSolver = ['val', 'root', 'min', 'max', 'deriv', 'int', 'tangent'].includes(solverKey);
+    if (isCurveSolver) {
+      this.state.activeEquationKey = this.resolveDefaultCurveKey();
+      this.updateActiveEquationUI();
     }
 
     this.state.activeSolver = solverKey;
@@ -3372,6 +3423,7 @@ class App {
       case 'val':
         solverName = "Value Calculation (Calculate Y)";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-val-x" class="input-label">Calculate at X =</label>
             <input type="text" id="input-solver-val-x" class="equation-input" value="0" autocomplete="off">
@@ -3382,6 +3434,7 @@ class App {
       case 'root':
         solverName = "Zero / Root Finder";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-guess-x" class="input-label">Starting Guess X =</label>
             <input type="text" id="input-solver-guess-x" class="equation-input" value="0" autocomplete="off">
@@ -3392,6 +3445,7 @@ class App {
       case 'min':
         solverName = "Local Minimum Finder";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-guess-x" class="input-label">Starting Guess X =</label>
             <input type="text" id="input-solver-guess-x" class="equation-input" value="0" autocomplete="off">
@@ -3402,6 +3456,7 @@ class App {
       case 'max':
         solverName = "Local Maximum Finder";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-guess-x" class="input-label">Starting Guess X =</label>
             <input type="text" id="input-solver-guess-x" class="equation-input" value="0" autocomplete="off">
@@ -3412,6 +3467,7 @@ class App {
       case 'deriv':
         solverName = "dy/dx Numerical Derivative";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-deriv-x" class="input-label">Derivative at X =</label>
             <input type="text" id="input-solver-deriv-x" class="equation-input" value="0" autocomplete="off">
@@ -3422,11 +3478,12 @@ class App {
       case 'int':
         solverName = "Definite Integration";
         fields.innerHTML = `
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group">
             <label for="input-solver-int-lower" class="input-label">Lower Limit (X) =</label>
             <input type="text" id="input-solver-int-lower" class="equation-input" value="${this.graphEngine.xMin}" autocomplete="off">
           </div>
-          <div class="input-group">
+          <div class="input-group" style="margin-top: 15px;">
             <label for="input-solver-int-upper" class="input-label">Upper Limit (X) =</label>
             <input type="text" id="input-solver-int-upper" class="equation-input" value="${this.graphEngine.xMax}" autocomplete="off">
           </div>
@@ -3436,15 +3493,7 @@ class App {
       case 'tangent':
         solverName = "Draw Tangent Line";
         fields.innerHTML = `
-          <div class="input-group">
-            <label for="select-solver-tangent-curve" class="input-label">Select Curve:</label>
-            <select id="select-solver-tangent-curve" class="settings-select" style="font-size: 26px; font-weight: 600; flex: 1;">
-              <option value="y1">Y1</option>
-              <option value="y2">Y2</option>
-              <option value="y3">Y3</option>
-              <option value="y4">Y4</option>
-            </select>
-          </div>
+          ${this.generateCurveSelectorHTML()}
           <div class="input-group" style="margin-top: 15px;">
             <label for="input-solver-tangent-c" class="input-label">Point x = c:</label>
             <input type="text" id="input-solver-tangent-c" class="equation-input" value="${this.state.cursor.x}" autocomplete="off">
@@ -3555,6 +3604,16 @@ class App {
     title.textContent = solverName;
     this.speechManager.speak(`${speechPrompt} Press Enter or select calculate button.`);
 
+    const curveSelect = fields.querySelector('#select-solver-curve');
+    if (curveSelect) {
+      curveSelect.addEventListener('change', (e) => {
+        const nextKey = e.target.value;
+        this.state.activeEquationKey = nextKey;
+        this.updateActiveEquationUI();
+        this.speechManager.speak(`Selected curve ${nextKey.toUpperCase()}`);
+      });
+    }
+
     const firstInput = fields.querySelector('input');
     if (firstInput) {
       firstInput.focus();
@@ -3572,16 +3631,20 @@ class App {
   }
 
   executeSolver() {
-    const activeKey = this.state.activeEquationKey;
+    const solver = this.state.activeSolver;
+    const isStatOrDistr = ['1var', '2var', 'linreg', 'normalcdf', 'invnorm'].includes(solver);
+
+    let activeKey = this.state.activeEquationKey;
+    const curveSelect = document.getElementById('select-solver-curve');
+    if (curveSelect) {
+      activeKey = curveSelect.value;
+    }
     const eq = this.state.equations[activeKey];
 
     const existingResult = document.getElementById('solver-result-panel');
     if (existingResult) existingResult.remove();
 
     const form = document.getElementById('solver-form');
-    const solver = this.state.activeSolver;
-
-    const isStatOrDistr = ['1var', '2var', 'linreg', 'normalcdf', 'invnorm'].includes(solver);
 
     if (!isStatOrDistr && (!eq || !eq.compiled)) {
       this.speechManager.speak(`Active equation ${activeKey.toUpperCase()} is empty or has errors.`, true);
@@ -3703,7 +3766,7 @@ class App {
           this.showCanvasSolverResult(`Integral from ${lower} to ${upper} = ${areaVal}`);
         }
       } else if (solver === 'tangent') {
-        const curveKey = document.getElementById('select-solver-tangent-curve').value;
+        const curveKey = document.getElementById('select-solver-curve').value;
         const cVal = parseFloat(document.getElementById('input-solver-tangent-c').value);
         if (isNaN(cVal)) throw new Error("Invalid X coordinate");
 

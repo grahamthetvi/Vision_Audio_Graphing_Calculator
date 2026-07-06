@@ -1459,8 +1459,29 @@ class App {
       });
     });
 
-    // Toggle Table View
-    document.getElementById('btn-toggle-table').addEventListener('click', () => this.toggleTableView());
+    // Screen view switcher tabs
+    const btnViewGraph = document.getElementById('btn-view-graph');
+    const btnViewTable = document.getElementById('btn-view-table');
+    const btnViewHome = document.getElementById('btn-view-home');
+
+    if (btnViewGraph) {
+      btnViewGraph.addEventListener('click', () => this.switchView('graph'));
+      btnViewGraph.addEventListener('focus', () => {
+        this.speechManager.speak("Graph screen tab. Press to switch to the graphing viewport.", true);
+      });
+    }
+    if (btnViewTable) {
+      btnViewTable.addEventListener('click', () => this.switchView('table'));
+      btnViewTable.addEventListener('focus', () => {
+        this.speechManager.speak("Table screen tab. Press to switch to the data table. Shortcut: T.", true);
+      });
+    }
+    if (btnViewHome) {
+      btnViewHome.addEventListener('click', () => this.switchView('home'));
+      btnViewHome.addEventListener('focus', () => {
+        this.speechManager.speak("Calculator screen tab. Press to switch to freeform calculation mode. Shortcut: Alt plus H.", true);
+      });
+    }
 
     // Solver Buttons
     const solverKeys = ['val', 'root', 'min', 'max', 'deriv', 'int', 'tangent'];
@@ -2732,7 +2753,6 @@ class App {
   initHomeEvents() {
     const homeInput = document.getElementById('home-input');
     const homeHistory = document.getElementById('home-history');
-    const btnHome = document.getElementById('btn-view-home');
 
     if (homeInput) {
       homeInput.addEventListener('keydown', (e) => {
@@ -2796,15 +2816,6 @@ class App {
 
       homeHistory.addEventListener('focus', () => {
         this.speechManager.speak("Calculation history list. Use up and down arrow keys to navigate.", true);
-      });
-    }
-
-    if (btnHome) {
-      btnHome.addEventListener('click', () => {
-        this.switchView(this.state.activeView === 'home' ? 'graph' : 'home');
-      });
-      btnHome.addEventListener('focus', () => {
-        this.speechManager.speak("Home Screen button. Press to open freeform calculation home screen.", true);
       });
     }
   }
@@ -2972,13 +2983,36 @@ class App {
     }
   }
 
+  updateScreenTabs(activeView) {
+    const tabs = {
+      graph: document.getElementById('btn-view-graph'),
+      table: document.getElementById('btn-view-table'),
+      home: document.getElementById('btn-view-home'),
+    };
+    const announce = document.getElementById('current-screen-announce');
+    const screenNames = { graph: 'Graph', table: 'Table', home: 'Calculator' };
+
+    for (const [view, btn] of Object.entries(tabs)) {
+      if (!btn) continue;
+      const isActive = activeView === view;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    }
+
+    if (announce) {
+      if (screenNames[activeView]) {
+        announce.textContent = `Current screen: ${screenNames[activeView]}`;
+      } else if (activeView === 'list-editor') {
+        announce.textContent = 'Current screen: List Editor';
+      }
+    }
+  }
+
   switchView(viewName) {
     const graphWrapper = document.getElementById('graph-view-wrapper');
     const tableWrapper = document.getElementById('table-view-wrapper');
     const listEditorWrapper = document.getElementById('list-editor-wrapper');
     const homeWrapper = document.getElementById('home-view-wrapper');
-    const btnToggle = document.getElementById('btn-toggle-table');
-    const btnHome = document.getElementById('btn-view-home');
     
     // Hide all
     if (graphWrapper) graphWrapper.classList.add('hidden');
@@ -2992,25 +3026,11 @@ class App {
     }
     
     this.state.activeView = viewName;
-
-    // Toggle active state for btnHome
-    if (btnHome) {
-      if (viewName === 'home') {
-        btnHome.classList.add('active');
-        btnHome.setAttribute('aria-pressed', 'true');
-      } else {
-        btnHome.classList.remove('active');
-        btnHome.setAttribute('aria-pressed', 'false');
-      }
-    }
+    this.updateScreenTabs(viewName);
 
     if (viewName === 'graph') {
       this.state.tableModeActive = false;
       if (graphWrapper) graphWrapper.classList.remove('hidden');
-      if (btnToggle) {
-        btnToggle.textContent = "Table View (T)";
-        btnToggle.setAttribute('aria-pressed', 'false');
-      }
       this.canvas.focus();
       this.draw();
       this.speechManager.speak("Switched to graph view.");
@@ -3018,10 +3038,6 @@ class App {
       this.state.tableModeActive = true;
       this.state.tableCurrentRowIndex = 0;
       if (tableWrapper) tableWrapper.classList.remove('hidden');
-      if (btnToggle) {
-        btnToggle.textContent = "Graph View (T)";
-        btnToggle.setAttribute('aria-pressed', 'true');
-      }
       this.renderTable();
       const dataTable = document.getElementById('dataTable');
       if (dataTable) dataTable.focus();
@@ -3040,7 +3056,7 @@ class App {
       if (homeInput) {
         homeInput.focus();
       }
-      this.speechManager.speak("Switched to home screen calculation mode. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
+      this.speechManager.speak("Switched to calculator screen. Type math expressions and press Enter to evaluate. Press Alt plus H to return to graph.");
     }
   }
 

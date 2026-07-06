@@ -25,6 +25,27 @@
     <main class="app-main" role="main">
       <!-- Sidebar Control Panel -->
       <section class="sidebar-panel" aria-label="Calculator Controls">
+        <div class="sidebar-section view-switcher-section">
+          <h2 class="section-title" id="view-switcher-label">Screen</h2>
+          <div class="view-switcher" role="tablist" aria-labelledby="view-switcher-label">
+            <button id="btn-view-graph" class="view-switch-btn active"
+                    role="tab" aria-selected="true" aria-controls="graph-view-wrapper">
+              Graph
+            </button>
+            <button id="btn-view-table" class="view-switch-btn"
+                    role="tab" aria-selected="false" aria-controls="table-view-wrapper">
+              Table (T)
+            </button>
+            <button id="btn-view-home" class="view-switch-btn"
+                    role="tab" aria-selected="false" aria-controls="home-view-wrapper">
+              Calculator (Alt+H)
+            </button>
+          </div>
+          <p class="sr-only" id="current-screen-announce" aria-live="polite">
+            Current screen: Graph
+          </p>
+        </div>
+
         <div class="sidebar-section">
           <h2 class="section-title">Equations</h2>
           <div class="input-group">
@@ -92,7 +113,7 @@
         </div>
 
         <div class="sidebar-section">
-          <h2 class="section-title">Calculation Settings</h2>
+          <h2 class="section-title">Calculator Settings</h2>
           <div class="input-group-settings">
             <span class="settings-label">Angle Mode:</span>
             <div class="toggle-buttons">
@@ -116,6 +137,10 @@
               <option value="fix4">Fix 4</option>
             </select>
           </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h2 class="section-title">Table Settings</h2>
           <div class="table-settings-grid">
             <div class="input-group-half">
               <label for="input-tblstart" class="input-label-small">TblStart</label>
@@ -125,10 +150,6 @@
               <label for="input-dtbl" class="input-label-small">ΔTbl</label>
               <input type="text" id="input-dtbl" class="window-input" value="1" autocomplete="off" spellcheck="false">
             </div>
-          </div>
-          <div class="button-row">
-            <button id="btn-toggle-table" class="action-btn">Table View (T)</button>
-            <button id="btn-view-home" class="action-btn">Home Screen (Alt+H)</button>
           </div>
         </div>
 
@@ -166,14 +187,14 @@
 
       <!-- Graphing/Table Viewport Section -->
       <section class="graph-section" aria-label="Calculator Viewport">
-        <div id="graph-view-wrapper" class="canvas-wrapper">
+        <div id="graph-view-wrapper" class="canvas-wrapper" role="tabpanel" aria-labelledby="btn-view-graph">
           <canvas id="graphCanvas" tabindex="0" role="application" aria-label="Graphing grid viewport. Use arrow keys to navigate the crosshairs. Press Escape or Tab to leave."></canvas>
           <div id="canvas-solver-result" class="canvas-overlay-text hidden" aria-live="assertive"></div>
           <!-- Custom accessible legend / state reader for screen readers -->
           <div class="sr-only" id="graph-announcement" aria-live="assertive"></div>
         </div>
 
-        <div id="table-view-wrapper" class="table-wrapper hidden">
+        <div id="table-view-wrapper" class="table-wrapper hidden" role="tabpanel" aria-labelledby="btn-view-table">
           <table id="dataTable" class="matrix-grid" tabindex="0" role="grid" aria-label="Data Table grid. Use Up and Down arrow keys to navigate rows. Press T to return to Graph.">
             <thead>
               <tr>
@@ -190,7 +211,7 @@
           </table>
         </div>
 
-        <div id="list-editor-wrapper" class="list-editor-wrapper hidden">
+        <div id="list-editor-wrapper" class="list-editor-wrapper hidden" role="tabpanel" aria-label="List Editor">
           <div class="list-editor-header">
             <button id="btn-list-clear-all" class="action-btn">Clear All Lists</button>
             <button id="btn-list-back" class="action-btn secondary">Return to Graph (Esc)</button>
@@ -211,7 +232,7 @@
           </div>
         </div>
 
-        <div id="home-view-wrapper" class="home-wrapper hidden">
+        <div id="home-view-wrapper" class="home-wrapper hidden" role="tabpanel" aria-labelledby="btn-view-home">
           <div id="home-history" class="home-history" tabindex="0" role="log" aria-label="Calculation history. Use up and down arrow keys to review previous calculations.">
             <!-- Expression-result pairs populated dynamically -->
           </div>
@@ -285,7 +306,7 @@
             </tr>
             <tr>
               <td><kbd>T</kbd></td>
-              <td>Toggle between Graph View and Data Table View.</td>
+              <td>Toggle between Graph and Table screens. You can also use the Screen tabs at the top of the sidebar.</td>
             </tr>
             <tr>
               <td><kbd>C</kbd></td>
@@ -297,7 +318,7 @@
             </tr>
             <tr>
               <td><kbd>Alt + H</kbd></td>
-              <td>Toggle between Graphing Workspace and Home Screen.</td>
+              <td>Toggle between Graph and Calculator screens. You can also use the Screen tabs at the top of the sidebar.</td>
             </tr>
             <tr>
               <td><kbd>Alt + R</kbd></td>

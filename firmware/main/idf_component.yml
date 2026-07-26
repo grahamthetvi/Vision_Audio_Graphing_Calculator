@@ -1,0 +1,4 @@
+## IDF Component Manager — ST7789 panel (ESP-IDF 5.x)
+dependencies:
+  idf:
+    version: ">=5.1.0"

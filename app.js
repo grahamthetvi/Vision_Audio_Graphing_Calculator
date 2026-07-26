@@ -7,11 +7,15 @@
 // 1. Speech Synthesis Wrapper (SpeechManager)
 // ============================================================================
 class SpeechManager {
-  constructor() {
+  /**
+   * @param {function(string): void} [onStatus] - Optional status callback (e.g. footer update).
+   */
+  constructor(onStatus = null) {
     this.synth = window.speechSynthesis;
     this.voice = null;
     this.speechRate = 1.1; // Slightly accelerated for snappy feedback
     this.isMuted = false;
+    this.onStatus = typeof onStatus === 'function' ? onStatus : null;
     this.initVoice();
 
     if (this.synth && typeof this.synth.addEventListener === 'function') {
@@ -100,437 +104,17 @@ class SpeechManager {
   }
 
   updateStatus(statusText) {
-    const statusEl = document.getElementById('footer-status');
-    if (statusEl) {
-      statusEl.textContent = statusText;
+    if (this.onStatus) {
+      this.onStatus(statusText);
     }
   }
 }
 
-// ============================================================================
-// 2. Decoupled Mathematical Engine (GraphEngine)
-// ============================================================================
-class GraphEngine {
-  constructor(xMin = -10, xMax = 10, yMin = -10, yMax = 10, xScl = 1, yScl = 1) {
-    this.xMin = xMin;
-    this.xMax = xMax;
-    this.yMin = yMin;
-    this.yMax = yMax;
-    this.xScl = xScl;
-    this.yScl = yScl;
-  }
-
-  // Maps real math coordinates (x, y) to canvas pixel coordinates (pixelX, pixelY)
-  mathToPixel(x, y, width, height) {
-    const pixelX = ((x - this.xMin) / (this.xMax - this.xMin)) * width;
-    const pixelY = height - ((y - this.yMin) / (this.yMax - this.yMin)) * height;
-    return { x: pixelX, y: pixelY };
-  }
-
-  // Maps canvas pixel coordinates (pixelX, pixelY) back to real math coordinates (x, y)
-  pixelToMath(pixelX, pixelY, width, height) {
-    const x = this.xMin + (pixelX / width) * (this.xMax - this.xMin);
-    const y = this.yMin + ((height - pixelY) / height) * (this.yMax - this.yMin);
-    return { x, y };
-  }
-
-  // Coerce any complex, fraction, or bigNumber to a real number
-  coerceToNumber(val) {
-    if (typeof val === 'number') {
-      return val;
-    }
-    if (val && typeof val.toNumber === 'function') {
-      return val.toNumber();
-    }
-    if (val && typeof val.im === 'number' && typeof val.re === 'number') {
-      return val.im === 0 ? val.re : NaN;
-    }
-    return NaN;
-  }
-
-  /**
-   * Generates a coordinate vector of pixel points for a given Y = f(x) equation.
-   * Runs independently of the DOM.
-   */
-  generateYPoints(expression, width, height, angleMode = 'rad') {
-    if (!expression || expression.trim() === '') {
-      return { points: [], compiled: null, error: null };
-    }
-
-    try {
-      const compiled = math.compile(expression);
-      const points = [];
-
-      for (let pixelX = 0; pixelX <= width; pixelX++) {
-        const mathX = this.xMin + (pixelX / width) * (this.xMax - this.xMin);
-        try {
-          const rawY = CalcEngine.evaluateAt(compiled, mathX, angleMode);
-          const mathY = this.coerceToNumber(rawY);
-          
-          if (typeof mathY === 'number' && !isNaN(mathY) && isFinite(mathY)) {
-            const pixelY = height - ((mathY - this.yMin) / (this.yMax - this.yMin)) * height;
-            points.push({ x: pixelX, y: pixelY, mathY: mathY });
-          } else {
-            points.push({ x: pixelX, y: NaN, mathY: mathY });
-          }
-        } catch (evalErr) {
-          points.push({ x: pixelX, y: NaN, mathY: NaN });
-        }
-      }
-
-      return { points, compiled, error: null };
-    } catch (parseErr) {
-      return { points: [], compiled: null, error: parseErr.message };
-    }
-  }
-
-  /**
-   * Generates the pixel X coordinate for a vertical line X = c.
-   */
-  generateXPoint(expression, width, angleMode = 'rad') {
-    if (!expression || expression.trim() === '') {
-      return { pixelX: null, mathX: null, error: null };
-    }
-
-    try {
-      const compiled = math.compile(expression);
-      const rawVal = CalcEngine.evaluateAt(compiled, 0, angleMode);
-      const val = this.coerceToNumber(rawVal);
-      if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) {
-        throw new Error("Expression did not evaluate to a constant real number.");
-      }
-
-      const pixelX = ((val - this.xMin) / (this.xMax - this.xMin)) * width;
-      return { pixelX, mathX: val, error: null };
-    } catch (parseErr) {
-      return { pixelX: null, mathX: null, error: parseErr.message };
-    }
-  }
-}
+// GraphEngine, CalcEngine, and SonificationMath live in dedicated modules
+// (GraphEngine.js, CalcEngine.js, SonificationMath.js) for ESP32 portability.
 
 // ============================================================================
-// 2.5 Decoupled Calculation Engine (CalcEngine)
-// ============================================================================
-class CalcEngine {
-  /**
-   * Formats a value, handling numbers and math.js complex objects.
-   */
-  static formatComplexValue(val, precisionMode) {
-    if (typeof val === 'number') {
-      return CalcEngine.formatReal(val, precisionMode);
-    }
-    
-    // Check if it is a complex number from math.js
-    if (val && typeof val.re === 'number' && typeof val.im === 'number') {
-      const re = val.re;
-      const im = val.im;
-      
-      // If imaginary part is practically zero, format as real
-      if (Math.abs(im) < 1e-12) {
-        return CalcEngine.formatReal(re, precisionMode);
-      }
-      
-      // If real part is practically zero, format as imaginary
-      if (Math.abs(re) < 1e-12) {
-        return CalcEngine.formatImaginary(im, precisionMode);
-      }
-      
-      // Both real and imaginary parts are present: a + bi or a - bi
-      const reStr = CalcEngine.formatReal(re, precisionMode);
-      const imStr = CalcEngine.formatImaginary(Math.abs(im), precisionMode);
-      const sign = im > 0 ? ' + ' : ' - ';
-      
-      return `${reStr}${sign}${imStr}`;
-    }
-    
-    if (val && typeof val.toString === 'function') {
-      return val.toString();
-    }
-    return String(val);
-  }
-
-  static formatReal(val, precisionMode) {
-    if (typeof val !== 'number' || isNaN(val)) return "NaN";
-    if (!isFinite(val)) return val > 0 ? "Infinity" : "-Infinity";
-    if (precisionMode === 'float') {
-      return parseFloat(val.toFixed(6)).toString();
-    }
-    const prec = parseInt(precisionMode.slice(3)) || 2;
-    return val.toFixed(prec);
-  }
-
-  static formatImaginary(im, precisionMode) {
-    if (im === 1) return 'i';
-    if (im === -1) return '-i';
-    const formatted = CalcEngine.formatReal(im, precisionMode);
-    return `${formatted}i`;
-  }
-
-  /**
-   * Evaluates the equation at X, respecting Angle Mode (rad vs deg)
-   * @param {Object} compiled - Compiled math.js expression
-   * @param {number} xVal - The X coordinate
-   * @param {string} angleMode - 'rad' or 'deg'
-   * @returns {number}
-   */
-  static evaluateAt(compiled, xVal, angleMode) {
-    if (!compiled) return NaN;
-    const scope = { x: xVal };
-    if (angleMode === 'deg') {
-      scope.sin = (val) => Math.sin(val * Math.PI / 180);
-      scope.cos = (val) => Math.cos(val * Math.PI / 180);
-      scope.tan = (val) => Math.tan(val * Math.PI / 180);
-      scope.asin = (val) => Math.asin(val) * 180 / Math.PI;
-      scope.acos = (val) => Math.acos(val) * 180 / Math.PI;
-      scope.atan = (val) => Math.atan(val) * 180 / Math.PI;
-    }
-    return compiled.evaluate(scope);
-  }
-
-  /**
-   * Finds a root of f(x) in [xMin, xMax] using bisection/scanning.
-   */
-  static findRoot(compiled, xMin, xMax, angleMode, guessX = 0) {
-    const steps = 200;
-    const dx = (xMax - xMin) / steps;
-    let closestRoot = null;
-    let closestDist = Infinity;
-
-    for (let i = 0; i < steps; i++) {
-      const x1 = xMin + i * dx;
-      const x2 = x1 + dx;
-      
-      let y1, y2;
-      try {
-        y1 = this.evaluateAt(compiled, x1, angleMode);
-        y2 = this.evaluateAt(compiled, x2, angleMode);
-      } catch {
-        continue;
-      }
-
-      if (isNaN(y1) || isNaN(y2) || !isFinite(y1) || !isFinite(y2)) continue;
-
-      if (Math.abs(y1) < 1e-12) {
-        const dist = Math.abs(x1 - guessX);
-        if (dist < closestDist) {
-          closestRoot = x1;
-          closestDist = dist;
-        }
-      }
-
-      if (y1 * y2 < 0) {
-        let a = x1;
-        let b = x2;
-        let root = null;
-        for (let iter = 0; iter < 100; iter++) {
-          const mid = (a + b) / 2;
-          const yMid = this.evaluateAt(compiled, mid, angleMode);
-          if (Math.abs(yMid) < 1e-12 || (b - a) / 2 < 1e-12) {
-            root = mid;
-            break;
-          }
-          const yA = this.evaluateAt(compiled, a, angleMode);
-          if (yA * yMid < 0) {
-            b = mid;
-          } else {
-            a = mid;
-          }
-        }
-        if (root !== null) {
-          const dist = Math.abs(root - guessX);
-          if (dist < closestDist) {
-            closestRoot = root;
-            closestDist = dist;
-          }
-        }
-      }
-    }
-
-    return closestRoot;
-  }
-
-  /**
-   * Finds a local minimum or maximum in [xMin, xMax].
-   * @param {string} type - 'min' or 'max'
-   */
-  static findExtremum(compiled, xMin, xMax, angleMode, type, guessX = 0) {
-    const steps = 500;
-    const dx = (xMax - xMin) / steps;
-    const candidates = [];
-
-    let prevY = null;
-    let prevSlope = null;
-
-    for (let i = 0; i <= steps; i++) {
-      const x = xMin + i * dx;
-      let y;
-      try {
-        y = this.evaluateAt(compiled, x, angleMode);
-      } catch {
-        continue;
-      }
-      if (isNaN(y) || !isFinite(y)) {
-        prevY = null;
-        prevSlope = null;
-        continue;
-      }
-
-      if (prevY !== null) {
-        const slope = (y - prevY) / dx;
-        if (prevSlope !== null) {
-          if (prevSlope > 0 && slope < 0) {
-            if (type === 'max') {
-              candidates.push({ x: x - dx / 2, y: prevY });
-            }
-          } else if (prevSlope < 0 && slope > 0) {
-            if (type === 'min') {
-              candidates.push({ x: x - dx / 2, y: prevY });
-            }
-          }
-        }
-        prevSlope = slope;
-      }
-      prevY = y;
-    }
-
-    if (candidates.length === 0) {
-      return null;
-    }
-
-    let bestCandidate = null;
-    let minDiff = Infinity;
-    for (const cand of candidates) {
-      const diff = Math.abs(cand.x - guessX);
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestCandidate = cand;
-      }
-    }
-
-    let x = bestCandidate.x;
-    let step = dx / 2;
-    for (let iter = 0; iter < 30; iter++) {
-      const y = this.evaluateAt(compiled, x, angleMode);
-      const yLeft = this.evaluateAt(compiled, x - step, angleMode);
-      const yRight = this.evaluateAt(compiled, x + step, angleMode);
-
-      if (type === 'max') {
-        if (isFinite(yLeft) && isFinite(yRight)) {
-          if (yLeft > y && yLeft > yRight) {
-            x = x - step;
-          } else if (yRight > y && yRight > yLeft) {
-            x = x + step;
-          } else {
-            step /= 2;
-          }
-        } else {
-          step /= 2;
-        }
-      } else {
-        if (isFinite(yLeft) && isFinite(yRight)) {
-          if (yLeft < y && yLeft < yRight) {
-            x = x - step;
-          } else if (yRight < y && yRight < yLeft) {
-            x = x + step;
-          } else {
-            step /= 2;
-          }
-        } else {
-          step /= 2;
-        }
-      }
-    }
-
-    const finalY = this.evaluateAt(compiled, x, angleMode);
-    if (isNaN(finalY) || !isFinite(finalY)) return null;
-    return { x, y: finalY };
-  }
-
-  /**
-   * Calculates dy/dx at xVal
-   */
-  static derivative(compiled, xVal, angleMode) {
-    const h = 1e-5;
-    try {
-      const y1 = this.evaluateAt(compiled, xVal - h, angleMode);
-      const y2 = this.evaluateAt(compiled, xVal + h, angleMode);
-      if (isNaN(y1) || isNaN(y2) || !isFinite(y1) || !isFinite(y2)) return NaN;
-      return (y2 - y1) / (2 * h);
-    } catch {
-      return NaN;
-    }
-  }
-
-  /**
-   * Definite integration from lower to upper bound using Trapezoidal Rule
-   */
-  static integrate(compiled, lower, upper, angleMode) {
-    const N = 1000;
-    const h = (upper - lower) / N;
-    try {
-      const yStart = this.evaluateAt(compiled, lower, angleMode);
-      const yEnd = this.evaluateAt(compiled, upper, angleMode);
-      
-      if (isNaN(yStart) || isNaN(yEnd) || !isFinite(yStart) || !isFinite(yEnd)) return NaN;
-      
-      let sum = 0.5 * (yStart + yEnd);
-      for (let i = 1; i < N; i++) {
-        const yVal = this.evaluateAt(compiled, lower + i * h, angleMode);
-        if (isNaN(yVal) || !isFinite(yVal)) return NaN;
-        sum += yVal;
-      }
-      return sum * h;
-    } catch {
-      return NaN;
-    }
-  }
-
-  /**
-   * Calculates the second derivative f''(x) using a central second-order finite difference
-   */
-  static secondDerivative(compiled, xVal, angleMode) {
-    const h = 1e-3;
-    try {
-      const yPlus = this.evaluateAt(compiled, xVal + h, angleMode);
-      const yMinus = this.evaluateAt(compiled, xVal - h, angleMode);
-      const yVal = this.evaluateAt(compiled, xVal, angleMode);
-      if (isNaN(yPlus) || isNaN(yMinus) || isNaN(yVal) || !isFinite(yPlus) || !isFinite(yMinus) || !isFinite(yVal)) return NaN;
-      return (yPlus - 2 * yVal + yMinus) / (h * h);
-    } catch {
-      return NaN;
-    }
-  }
-
-  /**
-   * Finds the exact inflection point in [x1, x2] using bisection on the second derivative
-   */
-  static findInflectionPoint(compiled, x1, x2, angleMode) {
-    let a = x1;
-    let b = x2;
-    let lastMid = (a + b) / 2;
-    for (let iter = 0; iter < 15; iter++) {
-      const mid = (a + b) / 2;
-      const fDoubleMid = this.secondDerivative(compiled, mid, angleMode);
-      const fDoubleA = this.secondDerivative(compiled, a, angleMode);
-      if (isNaN(fDoubleMid) || isNaN(fDoubleA) || !isFinite(fDoubleMid) || !isFinite(fDoubleA)) {
-        return lastMid;
-      }
-      if (Math.abs(fDoubleMid) < 1e-8) {
-        return mid;
-      }
-      if (fDoubleA * fDoubleMid < 0) {
-        b = mid;
-      } else {
-        a = mid;
-      }
-      lastMid = mid;
-    }
-    return lastMid;
-  }
-}
-
-// ============================================================================
-// 3. Decoupled Graph Viewport Renderer
+// Graph Viewport Renderer (Canvas / web view layer)
 // ============================================================================
 class GraphRenderer {
   static getPalette(theme) {
@@ -580,8 +164,7 @@ class GraphRenderer {
     };
   }
 
-  static draw(ctx, width, height, graphEngine, state) {
-    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  static draw(ctx, width, height, graphEngine, state, theme = 'dark') {
     const palette = GraphRenderer.getPalette(theme);
 
     // 1. Clear Canvas
@@ -858,57 +441,6 @@ class GraphRenderer {
       ctx.arc(cursorPt.x, cursorPt.y, 8, 0, 2 * Math.PI);
       ctx.stroke();
     }
-  }
-}
-
-// ============================================================================
-// Sonification Math (Isolated for future C++/ESP32 port)
-// ============================================================================
-class SonificationMath {
-  static mapYToFrequency(y, yMin, yMax) {
-    // Exponential mapping from [yMin, yMax] to [200, 1000] Hz
-    const yNorm = Math.min(Math.max((y - yMin) / (yMax - yMin), 0.0), 1.0);
-    // f(y) = 200 * (1000 / 200) ^ yNorm
-    return 200.0 * Math.pow(5.0, yNorm);
-  }
-
-  static mapXToPan(x, xMin, xMax) {
-    // Linear mapping from [xMin, xMax] to [-1.0, 1.0]
-    const xNorm = Math.min(Math.max((x - xMin) / (xMax - xMin), 0.0), 1.0);
-    return -1.0 + 2.0 * xNorm;
-  }
-
-  static checkCriticalPoint(x, compiled, graphEngine) {
-    if (!compiled) return null;
-
-    try {
-      const y = graphEngine.coerceToNumber(compiled.evaluate({ x }));
-      if (isNaN(y) || !isFinite(y)) return null;
-
-      const eps = 0.005; // Small delta for derivative check
-      const yPrev = graphEngine.coerceToNumber(compiled.evaluate({ x: x - eps }));
-      const yNext = graphEngine.coerceToNumber(compiled.evaluate({ x: x + eps }));
-
-      if (isNaN(yPrev) || isNaN(yNext) || !isFinite(yPrev) || !isFinite(yNext)) return null;
-
-      // Local maximum
-      if (y > yPrev && y > yNext) {
-        return { type: 'maximum', y };
-      }
-
-      // Local minimum
-      if (y < yPrev && y < yNext) {
-        return { type: 'minimum', y };
-      }
-
-      // Zero crossing (root)
-      if (Math.abs(y) < 1e-5) {
-        return { type: 'root', y: 0 };
-      }
-    } catch {
-      // Ignore evaluation errors
-    }
-    return null;
   }
 }
 
@@ -1272,9 +804,15 @@ function isTextInputFocused() {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
 
+/** Fixed maximum rows per list column (ESP32 static-bound memory model). */
+const MAX_LIST_SIZE = 100;
+
 class App {
   constructor() {
-    this.speechManager = new SpeechManager();
+    this.speechManager = new SpeechManager((statusText) => {
+      const statusEl = document.getElementById('footer-status');
+      if (statusEl) statusEl.textContent = statusText;
+    });
     this.prefs = new PreferencesManager();
     // Apply persisted visual preferences and mute state before the UI initializes
     this.prefs.applyVisual();
@@ -1289,7 +827,7 @@ class App {
     this.currentStatsSpeechSummary = null;
     this.lastComputedRegressionEquation = null;
 
-    // Initialize list arrays
+    // Initialize list arrays (seeded demo data, padded to 30; hard cap MAX_LIST_SIZE)
     const initL1 = [1, 2, 3, 4, 5];
     const initL2 = [2, 4, 5, 4, 5];
     const initL3 = [10, 20, 30, 40, 50];
@@ -1606,12 +1144,6 @@ class App {
       btnViewCalc.addEventListener('focus', () => {
         this.speechManager.speak("Calculator view button. Freeform home screen calculations. Shortcut Alt Shift H.", true);
       });
-    }
-
-    // Legacy toggle table button (may not exist in current layout)
-    const legacyToggleTable = document.getElementById('btn-toggle-table');
-    if (legacyToggleTable) {
-      legacyToggleTable.addEventListener('click', () => this.toggleTableView());
     }
 
     // Solver Buttons
@@ -2133,8 +1665,7 @@ class App {
       const compiled = this.state.equations[key].compiled;
       if (compiled) {
         try {
-          const yVal = compiled.evaluate({ x: this.state.cursor.x });
-          const mathY = this.graphEngine.coerceToNumber(yVal);
+          const mathY = CalcEngine.evaluateAt(compiled, this.state.cursor.x, this.state.angleMode);
           if (typeof mathY === 'number' && !isNaN(mathY) && isFinite(mathY)) {
             this.state.cursor.y = Math.round(mathY * 100) / 100;
             return;
@@ -2380,8 +1911,7 @@ class App {
 
       try {
         if (compiled) {
-          const rawY = compiled.evaluate({ x });
-          const y = this.graphEngine.coerceToNumber(rawY);
+          const y = CalcEngine.evaluateAt(compiled, x, this.state.angleMode);
 
           if (typeof y === 'number' && !isNaN(y)) {
             let yToUse = y;
@@ -2401,8 +1931,7 @@ class App {
               let tangentFreq = null;
               if (this.state.equations.y_tangent && this.state.equations.y_tangent.active && this.state.equations.y_tangent.compiled) {
                 try {
-                  const rawYTangent = this.state.equations.y_tangent.compiled.evaluate({ x });
-                  const yTangent = this.graphEngine.coerceToNumber(rawYTangent);
+                  const yTangent = CalcEngine.evaluateAt(this.state.equations.y_tangent.compiled, x, this.state.angleMode);
                   if (typeof yTangent === 'number' && !isNaN(yTangent) && isFinite(yTangent)) {
                     tangentFreq = SonificationMath.mapYToFrequency(yTangent, yMin, yMax);
                   }
@@ -2516,8 +2045,7 @@ class App {
     const eq = this.state.equations[key];
     if (eq && eq.compiled) {
       try {
-        const yVal = eq.compiled.evaluate({ x: this.state.cursor.x });
-        const mathY = this.graphEngine.coerceToNumber(yVal);
+        const mathY = CalcEngine.evaluateAt(eq.compiled, this.state.cursor.x, this.state.angleMode);
         if (typeof mathY === 'number' && !isNaN(mathY)) {
           if (mathY > this.graphEngine.yMax) {
             this.state.cursor.y = Infinity;
@@ -2559,8 +2087,7 @@ class App {
     let tangentFreq = null;
     if (this.state.equations.y_tangent && this.state.equations.y_tangent.active && this.state.equations.y_tangent.compiled) {
       try {
-        const rawYTangent = this.state.equations.y_tangent.compiled.evaluate({ x });
-        const yTangent = this.graphEngine.coerceToNumber(rawYTangent);
+        const yTangent = CalcEngine.evaluateAt(this.state.equations.y_tangent.compiled, x, this.state.angleMode);
         if (typeof yTangent === 'number' && !isNaN(yTangent) && isFinite(yTangent)) {
           tangentFreq = SonificationMath.mapYToFrequency(yTangent, yMin, yMax);
         }
@@ -2652,8 +2179,7 @@ class App {
         for (let i = 0; i < 5; i++) {
           const mid = (left + right) / 2;
           try {
-            const yMidRaw = eq.compiled.evaluate({ x: mid });
-            const yMid = this.graphEngine.coerceToNumber(yMidRaw);
+            const yMid = CalcEngine.evaluateAt(eq.compiled, mid, this.state.angleMode);
 
             if (isNaN(yMid) || !isFinite(yMid) || Math.abs(yMid) > 100) {
               isAsymptote = true;
@@ -2662,8 +2188,7 @@ class App {
 
             if (yMid === 0) break;
 
-            const yLeftRaw = eq.compiled.evaluate({ x: left });
-            const yLeft = this.graphEngine.coerceToNumber(yLeftRaw);
+            const yLeft = CalcEngine.evaluateAt(eq.compiled, left, this.state.angleMode);
 
             if ((yLeft < 0 && yMid < 0) || (yLeft > 0 && yMid > 0)) {
               left = mid;
@@ -2731,7 +2256,7 @@ class App {
     if (milestoneTriggered) return;
 
     // 3. Extremum
-    const critPoint = SonificationMath.checkCriticalPoint(x, eq.compiled, this.graphEngine);
+    const critPoint = SonificationMath.checkCriticalPoint(x, eq.compiled, this.state.angleMode);
     if (critPoint) {
       this.audioTraceEngine.playCriticalPointChime();
       this.lastCriticalPointType = critPoint.type;
@@ -3157,7 +2682,6 @@ class App {
     const tableWrapper = document.getElementById('table-view-wrapper');
     const listEditorWrapper = document.getElementById('list-editor-wrapper');
     const homeWrapper = document.getElementById('home-view-wrapper');
-    const btnToggle = document.getElementById('btn-toggle-table');
     const btnHome = document.getElementById('btn-view-home');
     
     // Hide all
@@ -3190,10 +2714,6 @@ class App {
     if (viewName === 'graph') {
       this.state.tableModeActive = false;
       if (graphWrapper) graphWrapper.classList.remove('hidden');
-      if (btnToggle) {
-        btnToggle.textContent = "Table View (T)";
-        btnToggle.setAttribute('aria-pressed', 'false');
-      }
       this.canvas.focus();
       this.draw();
       this.speechManager.speak("Switched to graph view.");
@@ -3201,10 +2721,6 @@ class App {
       this.state.tableModeActive = true;
       this.state.tableCurrentRowIndex = 0;
       if (tableWrapper) tableWrapper.classList.remove('hidden');
-      if (btnToggle) {
-        btnToggle.textContent = "Graph View (T)";
-        btnToggle.setAttribute('aria-pressed', 'true');
-      }
       this.renderTable();
       const dataTable = document.getElementById('dataTable');
       if (dataTable) dataTable.focus();
@@ -3581,6 +3097,10 @@ class App {
 
           targetRow = row + 1;
           if (targetRow >= this.state.L1.length) {
+            if (this.state.L1.length >= MAX_LIST_SIZE) {
+              this.speechManager.speak(`List limit reached. Maximum ${MAX_LIST_SIZE} rows.`, true);
+              return;
+            }
             this.state.L1.push("");
             this.state.L2.push("");
             this.state.L3.push("");
@@ -4486,7 +4006,8 @@ class App {
   }
 
   draw() {
-    GraphRenderer.draw(this.ctx, this.canvas.width, this.canvas.height, this.graphEngine, this.state);
+    const theme = this.prefs.get('theme') || 'dark';
+    GraphRenderer.draw(this.ctx, this.canvas.width, this.canvas.height, this.graphEngine, this.state, theme);
   }
 }
 

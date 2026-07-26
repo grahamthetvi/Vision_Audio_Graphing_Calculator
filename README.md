@@ -47,11 +47,12 @@ graph TD
 ### The Logic Core (Hardware Portable)
 * **Scope:** Coordinate translation math, numerical solvers (roots, derivatives, integrals), list statistics algorithms, and raw sonification frequency/panning calculations.
 * **Constraints:** Must consist of **pure, framework-free JavaScript** relying exclusively on standard arrays and primitive data types. It must have **zero knowledge of the DOM**, window objects, or web-specific variables.
-* **Key Core Components:**
-  * **`GraphEngine`:** Handles math-to-pixel and pixel-to-math translation, and generates data point vectors without interacting with canvas contexts.
-  * **`CalcEngine`:** Houses pure mathematical algorithms for finding roots, minimums, maximums, derivatives, and integrals.
-  * **`StatEngine`:** Performs descriptive 1-variable and 2-variable statistics, linear regressions, and statistical distribution computations.
-  * **`SonificationMath`:** Executes raw frequency mapping and stereo panning ratios based on coordinate values.
+* **Key Core Components** (separate portable modules):
+  * **[`GraphEngine.js`](GraphEngine.js):** Handles math-to-pixel and pixel-to-math translation, and generates data point vectors without interacting with canvas contexts.
+  * **[`CalcEngine.js`](CalcEngine.js):** Houses pure mathematical algorithms for finding roots, minimums, maximums, derivatives, and integrals. `evaluateAt` always returns a coerced real number (or `NaN`).
+  * **[`StatEngine.js`](StatEngine.js):** Performs descriptive 1-variable and 2-variable statistics, linear regressions, and statistical distribution computations.
+  * **[`SonificationMath.js`](SonificationMath.js):** Executes raw frequency mapping, stereo panning ratios, and angle-mode-aware critical-point detection.
+* **Expression parsing (web only):** The browser blueprint still uses **math.js 11.8.0** for compile/evaluate. On ESP32-S3 this will be replaced by **TinyExpr** (or a custom Shunting-Yard parser); the engine APIs above are the behavioral ground truth for that swap.
 
 ---
 
@@ -61,9 +62,9 @@ Developers must write code under the assumption that it will execute on an ESP32
 
 | Constraint Area | Web Implementation Details | Embedded Hardware Target & Porting Roadmap |
 | :--- | :--- | :--- |
-| **SRAM & Memory** | Dynamic JavaScript arrays and garbage collection. | **Strict Static Bounds:** ESP32-S3 has limited SRAM (~512KB). Any array structure (such as the Stats List Editor columns `L1`–`L6`) must have fixed maximum bounds (e.g., `MAX_LIST_SIZE = 100`) to prevent heap fragmentation. |
+| **SRAM & Memory** | Dynamic JavaScript arrays and garbage collection. | **Strict Static Bounds:** ESP32-S3 has limited SRAM (~512KB). Stats List Editor columns `L1`–`L3` are capped at `MAX_LIST_SIZE = 100` in the web blueprint to match the embedded memory model. |
 | **Screen Resolution** | Scale-to-fit responsive HTML5 Canvas. | **Fixed Buffer Mapping:** Visual layouts and grid systems must be decoupled from the browser canvas size. Core coordinate math must adapt to a fixed 320x240 (or 480x320) LCD display. |
-| **Expression Parsing** | Dependency on `math.js` parser in the browser. | **Lightweight Math Parser:** The heavy `math.js` parser will be replaced by a lean C/C++ mathematical evaluator, such as **TinyExpr**, or a custom Shunting-Yard parser. |
+| **Expression Parsing** | Dependency on `math.js` 11.8.0 parser in the browser (CDN + npm for tests). | **Lightweight Math Parser:** The heavy `math.js` parser will be replaced by a lean C/C++ mathematical evaluator, such as **TinyExpr**, or a custom Shunting-Yard parser. |
 | **Processing Limits** | High-performance CPU cores. | **Lightweight Numerical Algorithms Only:** Complex Computer Algebra Systems (CAS) or $O(N^2)$ iterative sweeps are strictly forbidden. All mathematical tools must run in $O(N)$ linear time or better. |
 
 ### Preserving Performance in Math Routines
@@ -148,9 +149,34 @@ sequenceDiagram
 
 Before adding any mathematical, statistical, or calculus-oriented feature to this codebase, you must review and satisfy the following checklist:
 
-- [ ] **Decoupled from DOM:** The feature logic resides in a pure JavaScript class (`StatEngine`, `CalcEngine`, or a new domain-specific core engine) and does not reference `document`, `window`, CSS styles, or DOM elements.
-- [ ] **No Dynamic Memory Leaks:** The algorithm utilizes fixed or bounded arrays. Avoid heavy string manipulation loops, unbounded nesting, or excessive object allocations.
-- [ ] **No Heavy External Dependencies:** The implementation must rely on native JS math primitives (`Math.sin`, `Math.sqrt`, etc.) or simple logic blocks. Do not introduce new third-party npm packages or CDNs in the logic core.
+- [ ] **Decoupled from DOM:** The feature logic resides in a pure JavaScript module (`StatEngine.js`, `CalcEngine.js`, `GraphEngine.js`, `SonificationMath.js`, or a new domain-specific core file) and does not reference `document`, `window`, CSS styles, or DOM elements.
+- [ ] **No Dynamic Memory Leaks:** The algorithm utilizes fixed or bounded arrays (e.g. lists capped at `MAX_LIST_SIZE`). Avoid heavy string manipulation loops, unbounded nesting, or excessive object allocations.
+- [ ] **No Heavy External Dependencies:** The implementation must rely on native JS math primitives (`Math.sin`, `Math.sqrt`, etc.) or simple logic blocks. Do not introduce new third-party npm packages or CDNs in the logic core. Expression parsing may use the existing math.js blueprint only; ESP will replace it with TinyExpr later.
 - [ ] **Lightweight Complexity ($O(N)$ or better):** Avoid algorithms that require nested iterative scans over coordinate arrays. If computing values at grid points, ensure a single linear pass.
-- [ ] **Enforced Non-Finite Value Gates:** All variables fed into the coordinate generators or audio sonification layers are explicitly checked with `isNaN()` and `isFinite()`.
-- [ ] **Unit-Testable Core:** The logic is fully testable in a headless environment (Node.js or similar) by feeding standard inputs and asserting standard outputs without a browser environment.
+- [ ] **Enforced Non-Finite Value Gates:** All variables fed into the coordinate generators or audio sonification layers are explicitly checked with `isNaN()` and `isFinite()`. Use `CalcEngine.evaluateAt` (coerced real) for angle-mode-aware evaluation.
+- [ ] **Unit-Testable Core:** The logic is fully testable in a headless environment (Node.js) via `npm test`. Add or extend tests under `tests/` without requiring a browser.
+
+---
+
+## 7. ESP32-S3 Firmware (separate from the website)
+
+The **website is not discontinued**. Embedded work lives only under [`firmware/`](firmware/) (ESP-IDF). See [`firmware/README.md`](firmware/README.md) for build steps, BOM, pin map, and host golden tests.
+
+**Product policy:** numerical graphing calculator only — **no CAS**.
+
+| Locked hardware | Choice |
+|---|---|
+| Display | ST7789V 240×320 SPI (landscape 320×240) |
+| Audio | MAX98357A I2S + 3W 8Ω mono |
+| TTS | Gravity UART (cheaper alternatives documented in firmware README) |
+| Keypad | Number pad matrix + 2nd layer |
+| Power | 2000mAh LiPo PH2.0 + TP4056; skip Mini560 buck for LiPo→5V |
+
+```bash
+# Host math tests (no IDF / no hardware)
+make -C firmware/host_tests test
+
+# Device build (requires ESP-IDF v5.x)
+cd firmware && idf.py set-target esp32s3 build
+```
+
